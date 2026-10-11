@@ -69,18 +69,68 @@ class ApiShellTests(unittest.TestCase):
         self.assertEqual(response.status_code, 422)
         self.assertEqual(response.json()["detail"], "lp must be between 10 and 35 mm.")
 
-    def test_inverse_never_returns_a_geometry_outside_the_cst_backed_range(self) -> None:
+    def test_inverse_researches_the_cst_backed_range_when_legacy_search_exits_it(self) -> None:
+        try:
+            import pandas as pd
+        except ModuleNotFoundError:
+            self.skipTest("NOT VERIFIED: pandas is unavailable for bounded-inverse shell coverage")
+
         class OutsideRangeCore:
+            calls = 0
+
             @staticmethod
             def run_inverse_solver(*_args):
                 return {"lp": 35.25, "wp": 18.0}
 
-        resources = (None, None, None, None, None, object())
+            @classmethod
+            def forward_physics_first(cls, lp, wp, shape_id, *_args, **_kwargs):
+                cls.calls += 1
+                return {"fr": 3.5, "gain": 4.0, "bw": 0.2, "status": "WORKING"}
+
+        db = pd.DataFrame([
+            {"Antenna_ID": shape_id, "Lp": 34.8, "Wp": 18.0, "fr (GHz)": 3.5}
+            for shape_id in (1, 2, 3)
+        ])
+        resources = (None, None, None, None, None, db)
         with patch("backend.main.engine_manager.context", return_value=(OutsideRangeCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
             )
+        self.assertEqual(response.status_code, 200, response.text)
+        result = response.json()
+        self.assertGreater(OutsideRangeCore.calls, 0)
+        self.assertGreaterEqual(result["lp"], 10.0)
+        self.assertLessEqual(result["lp"], 35.0)
+        self.assertGreaterEqual(result["wp"], 10.0)
+        self.assertLessEqual(result["wp"], 35.0)
+
+    def test_inverse_reports_no_candidate_only_after_the_bounded_search(self) -> None:
+        try:
+            import pandas as pd
+        except ModuleNotFoundError:
+            self.skipTest("NOT VERIFIED: pandas is unavailable for bounded-inverse shell coverage")
+
+        class NoBoundedCandidateCore:
+            calls = 0
+
+            @staticmethod
+            def run_inverse_solver(*_args):
+                return {"lp": 35.25, "wp": 18.0}
+
+            @classmethod
+            def forward_physics_first(cls, *_args, **_kwargs):
+                cls.calls += 1
+                return None
+
+        db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
+        resources = (None, None, None, None, None, db)
+        with patch("backend.main.engine_manager.context", return_value=(NoBoundedCandidateCore(), resources)):
+            response = self.client.post(
+                "/api/inverse",
+                json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
+            )
+        self.assertGreater(NoBoundedCandidateCore.calls, 0)
         self.assertEqual(response.status_code, 422)
         self.assertIn("10–35 mm geometry range", response.json()["detail"])
 

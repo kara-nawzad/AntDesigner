@@ -496,6 +496,100 @@ def forward(payload: ForwardRequest) -> dict[str, Any]:
     return json_safe(result)
 
 
+def _within_public_geometry(lp: Any, wp: Any) -> bool:
+    return (
+        API_SLIDER_MIN_MM <= float(lp) <= API_SLIDER_MAX_MM
+        and API_SLIDER_MIN_MM <= float(wp) <= API_SLIDER_MAX_MM
+    )
+
+
+def _bounded_inverse_axis(center: float) -> tuple[float, ...]:
+    """Match the legacy 0.25 mm inverse grid, clipped to the public CST domain."""
+    lower = max(API_SLIDER_MIN_MM, center - 1.5)
+    upper = min(API_SLIDER_MAX_MM, center + 1.5)
+    if upper < lower:
+        return ()
+    count = int(math.floor((upper - lower) / 0.25 + 1e-9))
+    return tuple(lower + index * 0.25 for index in range(count + 1))
+
+
+def _legacy_nan_to_zero(value: Any) -> float:
+    """Use the same scalar conversion used by the untouched inverse solver."""
+    # Keep this import lazy so a bare /health endpoint remains available during a
+    # missing-dependency deployment diagnosis. A real inverse request requires
+    # NumPy/TensorFlow anyway, and NumPy is pinned in requirements.txt.
+    import numpy as np
+
+    return float(np.nan_to_num(value, nan=0.0))
+
+
+def _run_bounded_inverse_solver(
+    core: Any,
+    target_fr: float,
+    family: str,
+    priority: str,
+    fwd: Any,
+    s_geo: Any,
+    s_perf: Any,
+    db: Any,
+) -> dict[str, Any] | None:
+    """Re-run the legacy scoring policy only inside the user-requested 10–35 mm domain.
+
+    ``engine_core.run_inverse_solver`` remains unchanged for source parity and
+    rollback. This adapter is invoked only when that legacy 5–40 mm search selects
+    an unsupported result. It calls the same unchanged forward engine and retains
+    the same anchor, grid step, priorities, scores, and per-family selection rules.
+    """
+    results: list[dict[str, Any]] = []
+    for shape_id in API_FAMILY_MAP[family]:
+        subset = db[db["Antenna_ID"] == shape_id].copy()
+        if subset.empty:
+            continue
+        subset["df"] = (subset["fr (GHz)"] - target_fr).abs()
+        anchor = subset.sort_values("df").iloc[0]
+        lp_values = _bounded_inverse_axis(float(anchor["Lp"]))
+        wp_values = _bounded_inverse_axis(float(anchor["Wp"]))
+        if not lp_values or not wp_values:
+            continue
+
+        best_local: dict[str, Any] | None = None
+        for lp in lp_values:
+            for wp in wp_values:
+                prediction = core.forward_physics_first(
+                    float(lp), float(wp), shape_id, fwd, s_geo, s_perf, db, use_ml_refine=False
+                )
+                if prediction is None:
+                    continue
+                fr_err = abs(float(prediction["fr"]) - target_fr)
+                status_penalty = 0.04 if prediction["status"] != "WORKING" else 0.0
+                if priority == "Maximize Gain":
+                    score = fr_err + status_penalty - 0.015 * _legacy_nan_to_zero(prediction["gain"])
+                elif priority == "Maximize Bandwidth":
+                    score = fr_err + status_penalty - 0.010 * _legacy_nan_to_zero(prediction["bw"])
+                else:
+                    score = (
+                        fr_err
+                        + status_penalty
+                        - 0.006 * _legacy_nan_to_zero(prediction["gain"])
+                        - 0.004 * _legacy_nan_to_zero(prediction["bw"])
+                    )
+                if best_local is None or score < best_local["score"]:
+                    best_local = {
+                        "shape_id": shape_id,
+                        "lp": float(lp),
+                        "wp": float(wp),
+                        "fr": float(prediction["fr"]),
+                        "err": float(fr_err),
+                        "gain": _legacy_nan_to_zero(prediction["gain"]),
+                        "bw": _legacy_nan_to_zero(prediction["bw"]),
+                        "status": prediction["status"],
+                        "score": float(score),
+                    }
+        if best_local is not None:
+            results.append(best_local)
+    return min(results, key=lambda result: result["err"]) if results else None
+
+
 @app.post("/api/inverse")
 def inverse(payload: InverseRequest) -> dict[str, Any]:
     target_fr = _finite_float(payload.target_fr, "target_fr")
@@ -511,11 +605,9 @@ def inverse(payload: InverseRequest) -> dict[str, Any]:
     best = core.run_inverse_solver(target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
     if best is None:
         raise HTTPException(status_code=422, detail="No valid inverse-design candidate was found.")
-    dimensions_in_range = (
-        API_SLIDER_MIN_MM <= float(best["lp"]) <= API_SLIDER_MAX_MM
-        and API_SLIDER_MIN_MM <= float(best["wp"]) <= API_SLIDER_MAX_MM
-    )
-    if not dimensions_in_range:
+    if not _within_public_geometry(best["lp"], best["wp"]):
+        best = _run_bounded_inverse_solver(core, target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
+    if best is None:
         raise HTTPException(
             status_code=422,
             detail="No CST-backed inverse candidate was found inside the 10–35 mm geometry range.",

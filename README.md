@@ -162,12 +162,13 @@ python tests/test_parity.py
 The first test statically proves that retained numerical function bodies and scientific
 constants in `backend/engine_core.py` match the pre-UI part of untouched
 `10_web_app.py`. The shell test verifies the FastAPI/static-app contract without running
-inference. The parity test compares 48 forward requests and 36 inverse requests with the
-original function bodies, including the 1000-point response arrays, at `1e-9` absolute
-tolerance. It exercises only CST-backed forward dimensions (10–35 mm) and explicitly
-rejects any legacy inverse candidate outside that public range. It deliberately reports
-**NOT VERIFIED** rather than passing when TensorFlow, the model/CSV, or materialized
-scaler files are unavailable.
+inference, including the bounded inverse fallback. The parity test compares 48 forward
+requests and 36 inverse requests, including the 1000-point response arrays, at `1e-9`
+absolute tolerance. It preserves the legacy inverse result when that result is inside the
+public 10–35 mm CST-backed range; if the unchanged legacy 5–40 mm solver selects an
+out-of-range result, it verifies the API's equivalent bounded re-search instead. It
+deliberately reports **NOT VERIFIED** rather than passing when TensorFlow, the model/CSV,
+or materialized scaler files are unavailable.
 
 ## Deployment
 
