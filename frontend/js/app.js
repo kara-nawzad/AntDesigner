@@ -292,7 +292,7 @@
       input.step = range.step;
     });
     const trained = meta.trained_range_mm;
-    $('#fwd-trained-note').innerHTML = `Sliders span ${range.min}–${range.max} mm on purpose, but the model and the CST data were built from <strong>${trained.min}–${trained.max} mm</strong>. Outside that window the app says so and flags the result as extrapolation.`;
+    $('#fwd-trained-note').innerHTML = `Dimensions are limited to <strong>${range.min}–${range.max} mm</strong>, the range covered by both the CST dataset and trained model. This prevents unsupported extrapolation.`;
     const cstPct = Math.round((1 - meta.ml_blend_weight) * 100);
     const mlPct = Math.round(meta.ml_blend_weight * 100);
     $('#fwd-refine').nextElementSibling.textContent = `Use the trained neural model (${cstPct}/${mlPct} CST / model)`;
@@ -305,7 +305,7 @@
   }
 
   function clampDimension(value) {
-    const range = state.meta?.slider_range_mm || { min: 5, max: 40 };
+    const range = state.meta?.slider_range_mm || { min: 10, max: 35 };
     const number = Number(value);
     if (!Number.isFinite(number)) return null;
     return Math.max(Number(range.min), Math.min(Number(range.max), number));
@@ -343,7 +343,7 @@
     const wp = clampDimension($('#fwd-wp-number').value);
     const shapeId = Number($('#fwd-shape').value);
     if (lp === null || wp === null) {
-      showNotice($('#fwd-empty'), 'Enter valid Lp and Wp values between 5 and 40 mm.', 'warning');
+      showNotice($('#fwd-empty'), 'Enter valid Lp and Wp values between 10 and 35 mm.', 'warning');
       return;
     }
     setButtonBusy(button, true, 'Running simulation…');

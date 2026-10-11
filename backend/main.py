@@ -44,8 +44,8 @@ def _asset_version() -> str:
 
 ASSET_VERSION = _asset_version()
 
-# Interface metadata copied from the behavior source at 10_web_app.py lines 88-112.
-# Keeping it server-side means the frontend never embeds scientific ranges/shape IDs.
+# Shapes/families/priorities mirror the legacy behavior source. The public dimension
+# range is intentionally constrained to the CST-backed domain below.
 API_SHAPES = {
     "1. Rectangle": 1,
     "2. Stepped": 2,
@@ -69,8 +69,10 @@ API_FAMILY_MAP = {
 API_PRIORITIES = ("Balanced Profile", "Maximize Gain", "Maximize Bandwidth")
 API_TRAINED_MIN_MM = 10.0
 API_TRAINED_MAX_MM = 35.0
-API_SLIDER_MIN_MM = 5.0
-API_SLIDER_MAX_MM = 40.0
+# The public workbench deliberately accepts only the range backed by real CST data.
+# The copied legacy engine retains its original 5–40 mm clamp for rollback/parity.
+API_SLIDER_MIN_MM = API_TRAINED_MIN_MM
+API_SLIDER_MAX_MM = API_TRAINED_MAX_MM
 API_ML_BLEND_WEIGHT = 0.25
 API_ML_BLEND_RADIUS_MM = 0.60
 
@@ -161,9 +163,9 @@ def _validate_shape_and_dimensions(shape_id: int, lp: float, wp: float) -> tuple
     lp = _finite_float(lp, "lp")
     wp = _finite_float(wp, "wp")
     if not API_SLIDER_MIN_MM <= lp <= API_SLIDER_MAX_MM:
-        raise HTTPException(status_code=422, detail="lp must be between 5 and 40 mm.")
+        raise HTTPException(status_code=422, detail="lp must be between 10 and 35 mm.")
     if not API_SLIDER_MIN_MM <= wp <= API_SLIDER_MAX_MM:
-        raise HTTPException(status_code=422, detail="wp must be between 5 and 40 mm.")
+        raise HTTPException(status_code=422, detail="wp must be between 10 and 35 mm.")
     return lp, wp
 
 
@@ -202,7 +204,7 @@ def json_safe(value: Any) -> Any:
 
 
 class EngineManager:
-    """Owns one asynchronous load of the existing engine and its data resources."""
+    """Owns one load of the unchanged engine and its data resources."""
 
     def __init__(self) -> None:
         self._lock = threading.RLock()
@@ -213,12 +215,28 @@ class EngineManager:
         self._resources: tuple[Any, Any, Any, Any, Any, Any] | None = None
         self._startup_health: dict[str, Any] | None = None
 
-    def start(self) -> None:
+    def load_before_serving(self) -> None:
+        """Load synchronously so a normally deployed page is usable on first render."""
+        with self._lock:
+            if self._started:
+                return
+            self._started = True
+        self._load()
+
+    def start_in_background(self) -> None:
+        """Opt-in development mode for environments that intentionally defer loading."""
         with self._lock:
             if self._started:
                 return
             self._started = True
             threading.Thread(target=self._load, name="antdesigner-engine-loader", daemon=True).start()
+
+    def mark_warmup_disabled(self) -> None:
+        """Make test/preview-only disabled warmup explicit rather than endlessly pending."""
+        with self._lock:
+            self._started = True
+            self._status = "error"
+            self._error = "Engine warm-up is disabled for this runtime."
 
     def _load(self) -> None:
         try:
@@ -238,8 +256,8 @@ class EngineManager:
                 self._status = "ready"
                 self._error = None
         except Exception as exc:
-            # Do not send traceback/provider detail to browsers or logs. The real
-            # exception is intentionally not re-raised from the daemon thread.
+            # Do not send traceback/provider detail to browsers or logs. Startup
+            # still completes so /health can return a clear deployment error.
             with self._lock:
                 self._status = "error"
                 self._error = f"Engine initialization failed ({type(exc).__name__})."
@@ -341,9 +359,14 @@ app = FastAPI(
 
 
 @app.on_event("startup")
-def start_engine_background_load() -> None:
-    if os.getenv("ANTDESIGNER_DISABLE_ENGINE_WARMUP", "").lower() not in {"1", "true", "yes"}:
-        engine_manager.start()
+def start_engine_before_serving() -> None:
+    """Default to ready-only startup; opt into async warmup only for development."""
+    if os.getenv("ANTDESIGNER_DISABLE_ENGINE_WARMUP", "").lower() in {"1", "true", "yes"}:
+        engine_manager.mark_warmup_disabled()
+    elif os.getenv("ANTDESIGNER_BACKGROUND_ENGINE_WARMUP", "").lower() in {"1", "true", "yes"}:
+        engine_manager.start_in_background()
+    else:
+        engine_manager.load_before_serving()
 
 
 @app.middleware("http")
@@ -488,6 +511,15 @@ def inverse(payload: InverseRequest) -> dict[str, Any]:
     best = core.run_inverse_solver(target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
     if best is None:
         raise HTTPException(status_code=422, detail="No valid inverse-design candidate was found.")
+    dimensions_in_range = (
+        API_SLIDER_MIN_MM <= float(best["lp"]) <= API_SLIDER_MAX_MM
+        and API_SLIDER_MIN_MM <= float(best["wp"]) <= API_SLIDER_MAX_MM
+    )
+    if not dimensions_in_range:
+        raise HTTPException(
+            status_code=422,
+            detail="No CST-backed inverse candidate was found inside the 10–35 mm geometry range.",
+        )
 
     err_pct = float(best["err"]) / max(1e-8, target_fr) * 100.0
     return json_safe(

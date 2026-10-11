@@ -173,13 +173,14 @@ class NumericalParityTests(unittest.TestCase):
             row = subset.iloc[0]
             near = (float(row["Lp"]), float(row["Wp"]))
             far = self._far_inside_case(shape_id)
-            # 48 cases total: all shapes, near/far/out-of-range, and both values
-            # of the neural-refinement flag across each category.
+            # 48 cases total: all shapes, near/far/CST-range boundaries, and both
+            # values of the neural-refinement flag. The public workbench limits
+            # dimensions to the 10–35 mm CST-backed domain by design.
             cases.extend([
                 (shape_id, near[0], near[1], True),
                 (shape_id, far[0], far[1], False),
-                (shape_id, 5.0, 40.0, shape_id % 2 == 0),
-                (shape_id, 40.0, 5.0, shape_id % 2 != 0),
+                (shape_id, 10.0, 35.0, shape_id % 2 == 0),
+                (shape_id, 35.0, 10.0, shape_id % 2 != 0),
             ])
         return cases
 
@@ -203,6 +204,7 @@ class NumericalParityTests(unittest.TestCase):
         fwd, s_geo, s_perf, _, _, db = self.resources
         targets = (2.0, 3.5, 6.0)
         compared = 0
+        rejected_outside_public_range = 0
         for family in self.legacy.FAMILY_MAP:
             for priority in ("Balanced Profile", "Maximize Gain", "Maximize Bandwidth"):
                 for target in targets:
@@ -213,6 +215,12 @@ class NumericalParityTests(unittest.TestCase):
                             "/api/inverse",
                             json={"target_fr": target, "family": family, "priority": priority},
                         )
+                        in_public_range = all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp"))
+                        if not in_public_range:
+                            self.assertEqual(response.status_code, 422, response.text)
+                            self.assertIn("10–35 mm geometry range", response.json()["detail"])
+                            rejected_outside_public_range += 1
+                            continue
                         self.assertEqual(response.status_code, 200, response.text)
                         actual = response.json()
                         for key, expected_value in {
@@ -230,7 +238,7 @@ class NumericalParityTests(unittest.TestCase):
                         }.items():
                             self._assert_same(expected_value, actual[key], key)
                         compared += 1
-        self.assertEqual(compared, 36)
+        self.assertEqual(compared + rejected_outside_public_range, 36)
 
 
 if __name__ == "__main__":

@@ -24,7 +24,7 @@ browser → FastAPI (/api/*) → backend/engine_core.py → existing engine_v2.p
 
 | Capability | Description |
 |---|---|
-| **Forward prediction** | Given patch length `Lp`, width `Wp` and one of 12 shapes, predict resonant frequency, bandwidth, S11 minimum, VSWR, gain and radiation efficiency, plus the full 1–7 GHz S11 curve. |
+| **Forward prediction** | Given CST-backed patch length `Lp` and width `Wp` (10–35 mm) plus one of 12 shapes, predict resonant frequency, bandwidth, S11 minimum, VSWR, gain and radiation efficiency, plus the full 1–7 GHz S11 curve. |
 | **Inverse design** | Given a target frequency, a shape family and an optimisation priority, search the `(Lp, Wp)` space for the best-matching geometry. |
 | **Visual analysis** | Real 2D SVG geometry, optional 3D Plotly structure, and hoverable S11/VSWR response curves for each forward result. |
 | **CST data story** | Dataset-backed Lp/Wp scatter and resonant-frequency histogram, sampled deterministically from the CST CSV. |
@@ -44,6 +44,10 @@ The app has two predictors and **uses both**:
 Within 0.60 mm of a real simulation point the CST curve is used **verbatim** — it is ground
 truth, so there is nothing for a surrogate to improve. Beyond it, the answer is 75% CST
 interpolation + 25% neural model.
+
+The production Forward workbench accepts only **10–35 mm** for Lp and Wp: that is the
+CST-backed/model-trained geometry domain. The legacy 5–40 mm clamp remains untouched in
+the rollback/reference source but is not exposed by the new website.
 
 Both constants are at the top of `10_web_app.py`. Set `ML_BLEND_WEIGHT = 0.0` for pure CST
 interpolation, or raise it toward `1.0` to trust the model more. The **Use the trained neural
@@ -95,7 +99,7 @@ plain-average behaviour exactly, for comparison against previously published res
 ## Repository layout
 
 ```
-backend/main.py         FastAPI routes, background engine warm-up, static serving, validation jobs
+backend/main.py         FastAPI routes, ready-only engine startup, static serving, validation jobs
 backend/engine_core.py  API-side copy of legacy numerical functions; no algorithmic rewrite
 backend/aether.py       Server-side Groq adapter and legacy model-fallback order
 frontend/               Approved warm HTML/CSS/JS site, local fonts, local Plotly runtime
@@ -135,9 +139,10 @@ pip install -r requirements.txt
 uvicorn backend.main:app --host 0.0.0.0 --port 8080
 ```
 
-Open `http://localhost:8080`. The `/health` endpoint answers immediately while the
-model loads in a background thread. The browser only calls same-origin `/api/*`
-routes.
+Open `http://localhost:8080`. By default the server finishes loading the model, CST
+CSV, and scalers before it begins serving pages, so Forward and Inverse are ready when
+the site opens. The browser only calls same-origin `/api/*` routes. For local UI-only
+debugging, set `ANTDESIGNER_BACKGROUND_ENGINE_WARMUP=1` to opt into background loading.
 
 For AETHER, set `GROQ_API_KEY` in the server environment or Fly secrets. Never put it
 in frontend code. The legacy `.streamlit/secrets.toml.example` remains only for the
@@ -159,8 +164,10 @@ constants in `backend/engine_core.py` match the pre-UI part of untouched
 `10_web_app.py`. The shell test verifies the FastAPI/static-app contract without running
 inference. The parity test compares 48 forward requests and 36 inverse requests with the
 original function bodies, including the 1000-point response arrays, at `1e-9` absolute
-tolerance. It deliberately reports **NOT VERIFIED** rather than passing when TensorFlow,
-the model/CSV, or materialized scaler files are unavailable.
+tolerance. It exercises only CST-backed forward dimensions (10–35 mm) and explicitly
+rejects any legacy inverse candidate outside that public range. It deliberately reports
+**NOT VERIFIED** rather than passing when TensorFlow, the model/CSV, or materialized
+scaler files are unavailable.
 
 ## Deployment
 
@@ -172,8 +179,10 @@ fly deploy
 ```
 
 The Dockerfile installs the server dependencies and downloads the model plus CST CSV
-**during image build**. It intentionally fails early if the scalers are unresolved
-Git-LFS pointer files, rather than deploying an app that cannot initialize.
+**during image build**. The app then finishes engine loading before it accepts visitor
+traffic, and Fly is configured not to auto-stop the resident machine. It intentionally
+fails early if the scalers are unresolved Git-LFS pointer files, rather than deploying an
+app that cannot initialize.
 
 For a local container verification:
 
