@@ -166,8 +166,9 @@ inference, including the bounded inverse fallback. The parity test compares 48 f
 requests and 36 inverse requests, including the 1000-point response arrays, at `1e-9`
 absolute tolerance. It preserves the legacy inverse result when that result is inside the
 public 10–35 mm CST-backed range; if the unchanged legacy 5–40 mm solver selects an
-out-of-range or non-working result, it verifies the API's equivalent bounded re-search
-for a working CST-backed candidate instead. It
+out-of-range, non-working, or greater-than-2%-error result, it verifies the API's
+bounded scan of exact CST rows for a working candidate within the existing 2% target
+tolerance instead. It
 deliberately reports **NOT VERIFIED** rather than passing when TensorFlow, the model/CSV,
 or materialized scaler files are unavailable.
 

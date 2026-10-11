@@ -211,8 +211,7 @@ class NumericalParityTests(unittest.TestCase):
                     with self.subTest(family=family, priority=priority, target=target):
                         expected = self.legacy.run_inverse_solver(target, family, priority, fwd, s_geo, s_perf, db)
                         self.assertIsNotNone(expected)
-                        in_public_range = all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp"))
-                        if not in_public_range or str(expected["status"]) != "WORKING":
+                        if not self.main._is_usable_inverse_candidate(expected, target):
                             expected = self.main._run_bounded_inverse_solver(
                                 self.core, target, family, priority, fwd, s_geo, s_perf, db
                             )
@@ -221,14 +220,12 @@ class NumericalParityTests(unittest.TestCase):
                             "/api/inverse",
                             json={"target_fr": target, "family": family, "priority": priority},
                         )
-                        if expected is None:
+                        if not self.main._is_usable_inverse_candidate(expected, target):
                             self.assertEqual(response.status_code, 422, response.text)
-                            self.assertIn("No working CST-backed inverse candidate", response.json()["detail"])
+                            self.assertIn("No working CST-backed inverse candidate met the 2% frequency-target tolerance", response.json()["detail"])
                             no_working_candidate += 1
                             continue
 
-                        self.assertTrue(all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp")))
-                        self.assertEqual(str(expected["status"]), "WORKING")
                         self.assertEqual(response.status_code, 200, response.text)
                         actual = response.json()
                         for key, expected_value in {
