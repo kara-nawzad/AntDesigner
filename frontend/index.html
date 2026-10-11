@@ -1,0 +1,257 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="AI-based CPW microstrip antenna synthesis using CST-anchored neural surrogates.">
+  <title>AntDesigner — AI-Based CPW Antenna Synthesis</title>
+  <link rel="icon" href="/assets/antdesigner_favicon.png?v=__ASSET_VERSION__" type="image/png">
+  <link rel="stylesheet" href="/static/css/app.css?v=__ASSET_VERSION__">
+  <script defer src="/static/vendor/plotly.min.js?v=__ASSET_VERSION__"></script>
+  <script defer src="/static/js/app.js?v=__ASSET_VERSION__"></script>
+</head>
+<body>
+  <header class="top">
+    <div class="tw">
+      <a class="brand" href="#home" aria-label="AntDesigner home">
+        <img src="/assets/antdesigner_logo_nav.png?v=__ASSET_VERSION__" alt="AntDesigner">
+      </a>
+      <nav class="tabs" id="tb" role="tablist" aria-label="AntDesigner sections">
+        <button class="tab" id="tab-home" role="tab" aria-controls="home" aria-selected="true" data-tab="home">Home</button>
+        <button class="tab" id="tab-fwd" role="tab" aria-controls="fwd" aria-selected="false" data-tab="fwd">Forward</button>
+        <button class="tab" id="tab-inv" role="tab" aria-controls="inv" aria-selected="false" data-tab="inv">Inverse</button>
+        <button class="tab" id="tab-aeth" role="tab" aria-controls="aeth" aria-selected="false" data-tab="aeth">AETHER</button>
+        <button class="tab" id="tab-meth" role="tab" aria-controls="meth" aria-selected="false" data-tab="meth">Method &amp; Validation</button>
+        <i id="ind" aria-hidden="true"></i>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="engine-banner" id="engine-banner" role="status" hidden></div>
+
+    <section class="pane on" id="home" role="tabpanel" aria-labelledby="tab-home">
+      <div class="hero">
+        <div class="tx">
+          <p class="eye">Sulaymaniyah Polytechnic University · Graduation project 2025–2026</p>
+          <h1>
+            <span class="w" style="--n:1">We</span>
+            <span class="w" style="--n:2">taught</span>
+            <span class="w" style="--n:3">a</span>
+            <span class="w" style="--n:4">neural</span>
+            <span class="w" style="--n:5">network</span>
+            <span class="w" style="--n:6">to</span>
+            <span class="w" style="--n:7"><em>design</em></span>
+            <span class="w" style="--n:8"><em>antennas.</em></span>
+          </h1>
+          <p class="lead">Give it a patch size and it predicts how the antenna behaves. Give it a frequency between 1 and 7 GHz and it suggests the size to build. It learned from CST simulations, and it is tested against them.</p>
+          <div class="cta">
+            <button class="btn go" data-go="inv">Design for a frequency <span aria-hidden="true">→</span></button>
+            <button class="btn o go" data-go="fwd">Predict from dimensions</button>
+          </div>
+        </div>
+        <div class="art" aria-hidden="true">
+          <svg viewBox="0 0 1200 420" preserveAspectRatio="xMidYMax slice">
+            <g class="rl" style="--s:140s;--i:0"><path d="M0 270 C110 165 230 285 350 220 S590 150 710 248 S955 300 1200 205 V420 H0Z" fill="rgba(20,33,61,.07)" stroke="rgba(20,33,61,.16)" stroke-width="1.4"/></g>
+            <g class="rl" style="--s:100s;--i:1"><path d="M0 315 C140 200 250 320 410 245 S650 205 800 295 S1060 300 1200 240 V420 H0Z" fill="rgba(20,33,61,.10)" stroke="rgba(20,33,61,.22)" stroke-width="1.4"/></g>
+            <g class="rl" style="--s:70s;--i:2"><path d="M0 350 C140 245 280 365 450 285 S760 255 930 345 S1110 365 1200 300 V420 H0Z" fill="rgba(99,102,241,.10)" stroke="rgba(79,70,229,.45)" stroke-width="1.4"/></g>
+            <g class="rl" style="--s:45s;--i:3"><path d="M0 390 C150 318 300 405 470 348 S770 335 925 390 S1100 402 1200 355 V420 H0Z" fill="#EBE5D6" stroke="rgba(20,33,61,.55)" stroke-width="1.4"/></g>
+            <g class="mast" transform="translate(860 0)">
+              <path d="M-40 420C30 384 90 372 150 372S270 388 340 420Z" fill="#F5F2EA" stroke="rgba(20,33,61,.55)"/>
+              <g transform="translate(150 372)">
+                <path d="M0 0V-96" stroke="#14213D" stroke-width="2"/>
+                <rect x="-16" y="-124" width="32" height="30" rx="2" fill="rgba(99,102,241,.3)" stroke="#4F46E5" stroke-width="2"/>
+                <rect x="-11" y="-119" width="22" height="20" fill="#6366F1" opacity=".55"/>
+                <g fill="none" stroke="#4F46E5" stroke-width="2" stroke-linecap="round">
+                  <path class="arc left" style="--d:0s" d="M-24 -150a40 40 0 0 0 0 52"/>
+                  <path class="arc left" style="--d:.8s" d="M-36 -164a62 62 0 0 0 0 80"/>
+                  <path class="arc left" style="--d:1.6s" d="M-48 -178a84 84 0 0 0 0 108"/>
+                  <path class="arc" style="--d:0s" d="M24 -150a40 40 0 0 1 0 52"/>
+                  <path class="arc" style="--d:.8s" d="M36 -164a62 62 0 0 1 0 80"/>
+                  <path class="arc" style="--d:1.6s" d="M48 -178a84 84 0 0 1 0 108"/>
+                </g>
+              </g>
+            </g>
+          </svg>
+        </div>
+      </div>
+
+      <section class="sec rv">
+        <h2>How it works</h2>
+        <div class="steps">
+          <article class="step"><b>1</b><h3>Choose</h3><p>Pick one of 12 patch shapes and type a size, or type the frequency you want to reach.</p></article>
+          <article class="step"><b>2</b><h3>Predict</h3><p>The engine returns the S11 and VSWR curves, the resonance and the bandwidth.</p></article>
+          <article class="step"><b>3</b><h3>Check</h3><p>Built-in self-tests compare the engine with held-out CST simulations.</p></article>
+        </div>
+      </section>
+
+      <section class="sec rv" aria-labelledby="project-introduction">
+        <h2 id="project-introduction">About the project</h2>
+        <div class="intro-panel prose">
+          <p><strong>AI-Based CPW Microstrip Antenna Synthesis</strong> is a Sulaymaniyah Polytechnic University graduation project for CPW-fed patch antennas operating from <strong>1.0 to 7.0 GHz</strong>.</p>
+          <p>It uses CST simulation data and an existing trained surrogate to predict S11, bandwidth, gain, efficiency, and VSWR from a selected geometry—or to search for geometry from a target frequency.</p>
+          <p>The platform supports <strong>12 shapes in 4 families</strong>. Forward dimensions are intentionally limited to the CST-backed <strong>10–35 mm</strong> range. Use the results for academic exploration, then validate a fabrication candidate with a final electromagnetic simulation.</p>
+          <p><a class="text-link" href="https://drive.google.com/drive/folders/1DtTck0vSXKJWLYIGdFh75lOmcNlXlypJ" target="_blank" rel="noopener noreferrer">Open Research Library on Google Drive <span aria-hidden="true">↗</span></a></p>
+        </div>
+      </section>
+
+      <section class="sec rv" aria-labelledby="team-heading">
+        <h2 id="team-heading">The team</h2>
+        <div class="team">
+          <div><span class="lbl">Prepared by</span><ul><li>Arwin Hunar</li><li>Dunya Anwar</li><li>Kara Nawzad</li><li>Khazan Jafaar</li><li>Ramyar Aram</li><li>Ranw Jamil</li></ul></div>
+          <div><span class="lbl">Supervised by</span><ul class="one"><li>Dr. Halgurd N. Awl</li></ul></div>
+          <img src="/assets/spu_logo_nav.png?v=__ASSET_VERSION__" alt="Sulaymaniyah Polytechnic University">
+        </div>
+      </section>
+    </section>
+
+    <section class="pane" id="fwd" role="tabpanel" aria-labelledby="tab-fwd" hidden>
+      <header class="section-heading"><p class="eye">Design workbench</p><h2>Forward simulation</h2><p>Predict performance from patch dimensions.</p></header>
+      <div class="workbench">
+        <aside class="panel controls-panel" aria-label="Forward simulation controls">
+          <div class="field">
+            <label for="fwd-lp-number">Patch Length (Lp): slider + manual input (10.00-35.00 mm)</label>
+            <div class="number-and-range"><input id="fwd-lp-number" type="number" min="10" max="35" step="0.01" value="22.50" inputmode="decimal"><input id="fwd-lp-range" type="range" min="10" max="35" step="0.01" value="22.50" aria-label="Patch Length Lp"></div>
+          </div>
+          <div class="field">
+            <label for="fwd-wp-number">Patch Width (Wp): slider + manual input (10.00-35.00 mm)</label>
+            <div class="number-and-range"><input id="fwd-wp-number" type="number" min="10" max="35" step="0.01" value="18.00" inputmode="decimal"><input id="fwd-wp-range" type="range" min="10" max="35" step="0.01" value="18.00" aria-label="Patch Width Wp"></div>
+          </div>
+          <p class="hint" id="fwd-trained-note">Dimensions are limited to the CST-backed 10–35 mm range. Loading engine metadata…</p>
+          <div class="field"><label for="fwd-shape">Design Profile</label><select id="fwd-shape" aria-label="Design Profile"></select></div>
+          <label class="check-row"><input id="fwd-refine" type="checkbox" checked><span>Use the trained neural model</span></label>
+          <p class="hint" id="fwd-refine-note"></p>
+          <button id="fwd-run" class="btn wide">Initiate Simulation <span aria-hidden="true">→</span></button>
+        </aside>
+
+        <div class="results-area">
+          <div class="result-state" id="fwd-empty"><p class="serif">Choose a profile and dimensions, then run a real engine prediction.</p></div>
+          <div id="fwd-result" hidden>
+            <div class="result-topline"><h3 id="fwd-status">Status</h3><span class="engine-pill" id="fwd-engine">Engine mode: —</span></div>
+            <div id="fwd-warning"></div>
+            <div id="fwd-neural"></div>
+            <div class="metrics" aria-live="polite">
+              <div><span class="lbl">Resonance</span><b id="metric-fr" class="mono">—</b></div>
+              <div><span class="lbl">Bandwidth</span><b id="metric-bw" class="mono">—</b></div>
+              <div><span class="lbl">S11 Min</span><b id="metric-s11" class="mono">—</b></div>
+              <div><span class="lbl">VSWR @ Min</span><b id="metric-vswr" class="mono">—</b></div>
+              <div><span class="lbl">Gain</span><b id="metric-gain" class="mono">—</b></div>
+              <div><span class="lbl">Efficiency</span><b id="metric-eff" class="mono">—</b></div>
+            </div>
+            <p class="anchor-note" id="fwd-anchor"></p>
+
+            <div class="visual-grid">
+              <article class="visual-card">
+                <div class="subtabs" role="tablist" aria-label="Antenna visual view"><button class="subtab active" data-view="layout">2D layout</button><button class="subtab" data-view="structure">3D structure</button></div>
+                <div id="fwd-layout-view"><iframe id="fwd-antenna" title="Predicted antenna layout" sandbox="allow-scripts"></iframe></div>
+                <div id="fwd-structure-view" hidden><div class="plot-holder" id="fwd-3d" aria-label="Three dimensional antenna structure"></div><p class="chart-caption">CPW is a planar technology — ground, feed and patch share one plane. Slab thickness shown as 1.6 mm FR-4.</p></div>
+              </article>
+              <article class="visual-card response-card"><iframe id="fwd-response" title="Predicted S11 and VSWR response" sandbox="allow-scripts"></iframe></article>
+            </div>
+
+            <section class="toolkit" aria-labelledby="toolkit-title">
+              <div><p class="eye">Design Toolkit</p><h3 id="toolkit-title">Compare and document real runs</h3></div>
+              <div class="tool-buttons"><button id="compare-add" class="btn o">Add to comparison</button><button id="compare-clear" class="btn o" disabled>Clear</button><button id="report-download" class="btn o">Download design report</button></div>
+              <p class="hint" id="compare-note">Add a second design to overlay the curves.</p>
+              <div id="comparison-plot" class="plot-holder" hidden></div>
+            </section>
+
+            <details class="design-space"><summary>Explore the design space <span class="mono">(resonance vs. Lp / Wp)</span></summary><div id="design-space-content"><p class="hint">Read directly from the CST dataset, so this costs no model calls. Use it to see which Lp/Wp region reaches your target frequency before running the inverse solver.</p><button id="design-space-load" class="btn o">Load design-space map</button><div id="design-space-plot" class="plot-holder"></div></div></details>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="inv" role="tabpanel" aria-labelledby="tab-inv" hidden>
+      <header class="section-heading"><p class="eye">Target-driven design</p><h2>Inverse design</h2><p>Find dimensions for a target frequency.</p></header>
+      <div class="workbench">
+        <aside class="panel controls-panel" aria-label="Inverse design controls">
+          <div class="field"><label for="inv-target">Target Frequency (GHz)</label><input id="inv-target" type="number" min="1" max="7" step="0.01" value="3.50" inputmode="decimal"></div>
+          <div class="field"><label for="inv-priority">Optimization Priority</label><select id="inv-priority"></select></div>
+          <div class="field"><label for="inv-family">Shape Family</label><select id="inv-family"></select></div>
+          <button id="inv-run" class="btn wide">Synthesize Optimal Geometry <span aria-hidden="true">→</span></button>
+        </aside>
+        <div class="results-area">
+          <div class="result-state" id="inv-empty"><p class="serif">Set a target frequency and let the existing inverse solver search the real design space.</p></div>
+          <div id="inv-result" hidden>
+            <div class="result-banner">Inverse search completed. Review dimensions and predicted performance in this section.</div>
+            <div class="result-topline"><h3>Optimized Geometry</h3><span class="engine-pill" id="inv-status">Status: —</span></div>
+            <div class="metrics inverse-metrics">
+              <div><span class="lbl">Optimal Lp</span><b id="inv-lp" class="mono">—</b></div>
+              <div><span class="lbl">Optimal Wp</span><b id="inv-wp" class="mono">—</b></div>
+              <div><span class="lbl">Design Accuracy</span><b id="inv-accuracy" class="mono">—</b></div>
+              <div><span class="lbl">Priority</span><b id="inv-priority-result" class="metric-text">—</b></div>
+              <div><span class="lbl">Pred Gain</span><b id="inv-gain" class="mono">—</b></div>
+              <div><span class="lbl">Pred BW</span><b id="inv-bw" class="mono">—</b></div>
+            </div>
+            <p class="anchor-note" id="inv-summary"></p>
+            <article class="visual-card single-visual"><iframe id="inv-antenna" title="Optimized antenna layout" sandbox="allow-scripts"></iframe></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="pane" id="aeth" role="tabpanel" aria-labelledby="tab-aeth" hidden>
+      <header class="section-heading"><p class="eye">Antenna engineering assistant</p><h2>AETHER <em>assistant</em></h2><p>Ask about antenna design, parameters, or results.</p></header>
+      <section class="chat-shell panel" aria-label="AETHER conversation">
+        <div id="aether-not-configured" class="notice info" hidden></div>
+        <div id="aether-messages" class="chat-messages" aria-live="polite"></div>
+        <form id="aether-form" class="chat-form">
+          <label class="sr-only" for="aether-input">Ask AETHER</label>
+          <textarea id="aether-input" rows="2" maxlength="8000" placeholder="Ask AETHER about antenna design, parameters, or results…"></textarea>
+          <button class="btn" type="submit">Send <span aria-hidden="true">→</span></button>
+        </form>
+      </section>
+    </section>
+
+    <section class="pane" id="meth" role="tabpanel" aria-labelledby="tab-meth" hidden>
+      <header class="section-heading"><p class="eye">Evidence and method</p><h2>Method &amp; validation</h2><p>How the engine works and how it is tested.</p></header>
+      <section class="method-card panel">
+        <h3>Active engine components</h3>
+        <div class="metrics compact-metrics">
+          <div><span class="lbl">CST dataset</span><b id="engine-rows" class="mono">—</b></div>
+          <div><span class="lbl">Keras surrogate</span><b id="engine-model" class="metric-text">—</b></div>
+          <div><span class="lbl">Dip specialist</span><b id="engine-specialist" class="metric-text">—</b></div>
+          <div><span class="lbl">Blending</span><b id="engine-blending" class="metric-text">aligned</b></div>
+        </div>
+        <p class="hint" id="engine-method-note">Engine state is loading.</p>
+      </section>
+
+      <section class="data-story panel" aria-labelledby="data-story-title">
+        <div class="validation-intro"><p class="eye">CST data story</p><h3 id="data-story-title">Explore the simulation design space</h3><p>These plots are read directly from the CST dataset used by the engine. They show the sampled geometry distribution and the resonant-frequency distribution without fabricating measurements.</p></div>
+        <button id="data-story-load" class="btn o">Explore CST data</button>
+        <div id="data-story-result" class="data-story-grid"></div>
+      </section>
+
+      <section class="validation-section panel" aria-labelledby="self-test-title">
+        <div class="validation-intro"><p class="eye">Engine Validation</p><h3 id="self-test-title">Held-out CST fidelity</h3><p><strong>Leave-one-out</strong> fidelity check. Each sampled CST point is <em>removed</em> from the lookup table before the engine is asked to predict it, so the engine has to interpolate from neighbouring geometries. That is the quantity that matters: how well it predicts a design it has never seen. (The previous version sampled rows and then queried those same rows, so the engine returned the ground truth and every error read 0.000.)</p></div>
+        <div class="validation-controls"><label for="self-test-size">Held-out samples <output id="self-test-size-value">220</output></label><input id="self-test-size" type="range" min="40" max="400" step="20" value="220"><button id="self-test-run" class="btn">Run Self-Test (CSV fidelity) <span aria-hidden="true">→</span></button></div>
+        <div id="self-test-result" class="validation-result"></div>
+      </section>
+
+      <section class="validation-section panel" aria-labelledby="ab-title">
+        <div class="validation-intro"><p class="eye">CST interpolation vs. trained model</p><h3 id="ab-title">CST interpolation vs. the trained model</h3><p>The app ships <strong>two</strong> predictors. The answers you see come from interpolating the CST dataset; the trained Keras surrogate is loaded but only used as a fallback (or when you tick <em>Use ML refinement</em>). Its training-time accuracy was measured on its own held-out split, which is not the same as measuring it here. This scores both paths against the <strong>same</strong> held-out geometries, so the choice of default is evidence-based rather than assumed.</p></div>
+        <button id="ab-test-run" class="btn o">Compare CST vs. model</button>
+        <div id="ab-test-result" class="validation-result"></div>
+      </section>
+
+      <section class="validation-section panel" aria-labelledby="inverse-test-title">
+        <div class="validation-intro"><p class="eye">Inverse Validation</p><h3 id="inverse-test-title">Benchmark the inverse solver</h3><p>Run the existing inverse search against sampled CST target frequencies and download the family-level result table.</p></div>
+        <div class="validation-controls inverse-test-controls"><div class="field"><label for="inverse-test-mode">Inverse Test Mode</label><select id="inverse-test-mode"><option value="quick">Quick</option><option value="full">Full</option></select></div><div class="field"><label for="inverse-test-size">Samples per family <output id="inverse-test-size-value">3</output></label><input id="inverse-test-size" type="range" min="2" max="8" step="1" value="3"></div><button id="inverse-test-run" class="btn">Run Inverse Self-Test <span aria-hidden="true">→</span></button></div>
+        <div id="inverse-test-result" class="validation-result"></div>
+      </section>
+
+      <section class="validation-section panel" aria-labelledby="healthcheck-title">
+        <div class="validation-intro"><p class="eye">Startup health check</p><h3 id="healthcheck-title">Run the existing engine sanity check</h3><p>Checks CSV loading, shape coverage, model output heads, a physics-engine run, and 1,000-point curve output.</p></div>
+        <button id="healthcheck-run" class="btn o">Run startup health check</button>
+        <div id="healthcheck-result" class="validation-result"></div>
+      </section>
+    </section>
+
+    <footer>
+      <span>Technical College of Engineering — Communication Department · Sulaymaniyah Polytechnic University</span>
+      <span>Academic year 2025–2026 · AI-Based CPW Antenna Synthesis</span>
+    </footer>
+  </main>
+</body>
+</html>

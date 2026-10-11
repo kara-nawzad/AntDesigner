@@ -4,7 +4,8 @@
 # That is how a working app breaks on a redeploy: pandas alone shipped a 3.0 major
 # with copy-on-write and string-dtype changes since this code was written.
 # Versions below are the set the app was verified against.
-streamlit==1.60.0
+# Streamlit is intentionally absent: the legacy app is retained as source-only rollback
+# reference, while the deployed production path is FastAPI + local static files.
 numpy==1.26.4
 pandas==2.2.3
 tensorflow-cpu==2.16.2
@@ -16,3 +17,8 @@ groq==0.11.0
 huggingface_hub==0.25.2
 plotly==5.24.1
 pillow==10.4.0
+# HTML rebuild API. httpx is pinned below 0.28 so groq==0.11.0 constructs
+# cleanly without the historical Client(..., proxies=...) incompatibility.
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+httpx==0.27.2
