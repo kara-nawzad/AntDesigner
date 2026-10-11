@@ -132,7 +132,70 @@ class ApiShellTests(unittest.TestCase):
             )
         self.assertGreater(NoBoundedCandidateCore.calls, 0)
         self.assertEqual(response.status_code, 422)
-        self.assertIn("10–35 mm geometry range", response.json()["detail"])
+        self.assertIn("No working CST-backed inverse candidate", response.json()["detail"])
+
+    def test_inverse_anchors_fallback_search_to_in_domain_cst_rows(self) -> None:
+        try:
+            import pandas as pd
+        except ModuleNotFoundError:
+            self.skipTest("NOT VERIFIED: pandas is unavailable for bounded-inverse shell coverage")
+
+        class InDomainAnchorCore:
+            calls: list[tuple[float, float]] = []
+
+            @staticmethod
+            def run_inverse_solver(*_args):
+                return {"lp": 35.25, "wp": 18.0}
+
+            @classmethod
+            def forward_physics_first(cls, lp, wp, *_args, **_kwargs):
+                cls.calls.append((lp, wp))
+                return {"fr": 3.5, "gain": 4.0, "bw": 0.2, "status": "WORKING"}
+
+        # The exact-target row is outside the public domain. The fallback must
+        # instead anchor its legacy-style local grid on the valid 20 mm CST row.
+        db = pd.DataFrame([
+            {"Antenna_ID": 1, "Lp": 5.0, "Wp": 5.0, "fr (GHz)": 3.5},
+            {"Antenna_ID": 1, "Lp": 20.0, "Wp": 20.0, "fr (GHz)": 3.51},
+        ])
+        resources = (None, None, None, None, None, db)
+        with patch("backend.main.engine_manager.context", return_value=(InDomainAnchorCore(), resources)):
+            response = self.client.post(
+                "/api/inverse",
+                json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
+            )
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertTrue(InDomainAnchorCore.calls)
+        self.assertTrue(all(18.5 <= lp <= 21.5 and 18.5 <= wp <= 21.5 for lp, wp in InDomainAnchorCore.calls))
+
+    def test_inverse_never_returns_a_nonworking_design(self) -> None:
+        try:
+            import pandas as pd
+        except ModuleNotFoundError:
+            self.skipTest("NOT VERIFIED: pandas is unavailable for bounded-inverse shell coverage")
+
+        class NonWorkingCore:
+            calls = 0
+
+            @staticmethod
+            def run_inverse_solver(*_args):
+                return {"lp": 20.0, "wp": 18.0, "status": "NOT WORKING"}
+
+            @classmethod
+            def forward_physics_first(cls, *_args, **_kwargs):
+                cls.calls += 1
+                return {"fr": 3.5, "gain": 4.0, "bw": 0.2, "status": "NOT WORKING"}
+
+        db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
+        resources = (None, None, None, None, None, db)
+        with patch("backend.main.engine_manager.context", return_value=(NonWorkingCore(), resources)):
+            response = self.client.post(
+                "/api/inverse",
+                json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
+            )
+        self.assertGreater(NonWorkingCore.calls, 0)
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("No working CST-backed inverse candidate", response.json()["detail"])
 
     def test_index_and_static_css_are_served(self) -> None:
         index = self.client.get("/")

@@ -204,6 +204,7 @@ class NumericalParityTests(unittest.TestCase):
         fwd, s_geo, s_perf, _, _, db = self.resources
         targets = (2.0, 3.5, 6.0)
         compared = 0
+        no_working_candidate = 0
         for family in self.legacy.FAMILY_MAP:
             for priority in ("Balanced Profile", "Maximize Gain", "Maximize Bandwidth"):
                 for target in targets:
@@ -211,17 +212,23 @@ class NumericalParityTests(unittest.TestCase):
                         expected = self.legacy.run_inverse_solver(target, family, priority, fwd, s_geo, s_perf, db)
                         self.assertIsNotNone(expected)
                         in_public_range = all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp"))
-                        if not in_public_range:
+                        if not in_public_range or str(expected["status"]) != "WORKING":
                             expected = self.main._run_bounded_inverse_solver(
                                 self.core, target, family, priority, fwd, s_geo, s_perf, db
                             )
-                            self.assertIsNotNone(expected)
-                            self.assertTrue(all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp")))
 
                         response = self.client.post(
                             "/api/inverse",
                             json={"target_fr": target, "family": family, "priority": priority},
                         )
+                        if expected is None:
+                            self.assertEqual(response.status_code, 422, response.text)
+                            self.assertIn("No working CST-backed inverse candidate", response.json()["detail"])
+                            no_working_candidate += 1
+                            continue
+
+                        self.assertTrue(all(10.0 <= float(expected[key]) <= 35.0 for key in ("lp", "wp")))
+                        self.assertEqual(str(expected["status"]), "WORKING")
                         self.assertEqual(response.status_code, 200, response.text)
                         actual = response.json()
                         for key, expected_value in {
@@ -239,7 +246,7 @@ class NumericalParityTests(unittest.TestCase):
                         }.items():
                             self._assert_same(expected_value, actual[key], key)
                         compared += 1
-        self.assertEqual(compared, 36)
+        self.assertEqual(compared + no_working_candidate, 36)
 
 
 if __name__ == "__main__":

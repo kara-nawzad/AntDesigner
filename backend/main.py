@@ -537,12 +537,19 @@ def _run_bounded_inverse_solver(
 
     ``engine_core.run_inverse_solver`` remains unchanged for source parity and
     rollback. This adapter is invoked only when that legacy 5–40 mm search selects
-    an unsupported result. It calls the same unchanged forward engine and retains
-    the same anchor, grid step, priorities, scores, and per-family selection rules.
+    an out-of-domain or non-working result. It first chooses each CSV anchor from
+    the real 10–35 mm domain, then calls the same unchanged forward engine with
+    the legacy grid step, priorities, scores, and per-family selection rules.
     """
     results: list[dict[str, Any]] = []
     for shape_id in API_FAMILY_MAP[family]:
-        subset = db[db["Antenna_ID"] == shape_id].copy()
+        # The fallback's anchor itself must be CST-backed by the public domain;
+        # otherwise an out-of-range row can drag a clipped search to a boundary.
+        subset = db[
+            (db["Antenna_ID"] == shape_id)
+            & db["Lp"].between(API_SLIDER_MIN_MM, API_SLIDER_MAX_MM)
+            & db["Wp"].between(API_SLIDER_MIN_MM, API_SLIDER_MAX_MM)
+        ].copy()
         if subset.empty:
             continue
         subset["df"] = (subset["fr (GHz)"] - target_fr).abs()
@@ -558,10 +565,12 @@ def _run_bounded_inverse_solver(
                 prediction = core.forward_physics_first(
                     float(lp), float(wp), shape_id, fwd, s_geo, s_perf, db, use_ml_refine=False
                 )
-                if prediction is None:
+                # A non-working response is diagnostic information, not a valid
+                # antenna design. Continue searching rather than returning it.
+                if prediction is None or prediction["status"] != "WORKING":
                     continue
                 fr_err = abs(float(prediction["fr"]) - target_fr)
-                status_penalty = 0.04 if prediction["status"] != "WORKING" else 0.0
+                status_penalty = 0.0
                 if priority == "Maximize Gain":
                     score = fr_err + status_penalty - 0.015 * _legacy_nan_to_zero(prediction["gain"])
                 elif priority == "Maximize Bandwidth":
@@ -605,12 +614,14 @@ def inverse(payload: InverseRequest) -> dict[str, Any]:
     best = core.run_inverse_solver(target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
     if best is None:
         raise HTTPException(status_code=422, detail="No valid inverse-design candidate was found.")
-    if not _within_public_geometry(best["lp"], best["wp"]):
+    # Preserve the unchanged legacy answer only when it is both inside the
+    # public CST domain and a working antenna. Otherwise re-search that domain.
+    if not _within_public_geometry(best["lp"], best["wp"]) or best["status"] != "WORKING":
         best = _run_bounded_inverse_solver(core, target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
     if best is None:
         raise HTTPException(
             status_code=422,
-            detail="No CST-backed inverse candidate was found inside the 10–35 mm geometry range.",
+            detail="No working CST-backed inverse candidate was found inside the 10–35 mm geometry range.",
         )
 
     err_pct = float(best["err"]) / max(1e-8, target_fr) * 100.0
