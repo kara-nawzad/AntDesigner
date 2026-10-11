@@ -26,7 +26,7 @@ primary_region = "fra"
     interval = "30s"
     method = "GET"
     timeout = "10s"
-    path = "/_stcore/health"
+    path = "/health"
 
 [[vm]]
   size = "shared-cpu-1x"

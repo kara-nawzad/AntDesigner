@@ -6,6 +6,18 @@ of Engineering, Communication Department, Sulaymaniyah Polytechnic University.
 
 Deployed on fly.io as the app `antenna-ai-project` in the `fra` region (see `fly.toml`).
 
+## Web application architecture
+
+The production interface is a handcrafted HTML/CSS/JavaScript application served by
+FastAPI on port 8080. It calls the existing Python inference/validation functions
+through same-origin JSON endpoints; it does **not** train, rewrite, or modify the
+model/data science. `10_web_app.py` remains in the repository unchanged as the
+legacy Streamlit rollback reference.
+
+```text
+browser → FastAPI (/api/*) → backend/engine_core.py → existing engine_v2.py / CST data / trained model
+```
+
 ---
 
 ## What it does
@@ -14,6 +26,8 @@ Deployed on fly.io as the app `antenna-ai-project` in the `fra` region (see `fly
 |---|---|
 | **Forward prediction** | Given patch length `Lp`, width `Wp` and one of 12 shapes, predict resonant frequency, bandwidth, S11 minimum, VSWR, gain and radiation efficiency, plus the full 1–7 GHz S11 curve. |
 | **Inverse design** | Given a target frequency, a shape family and an optimisation priority, search the `(Lp, Wp)` space for the best-matching geometry. |
+| **Visual analysis** | Real 2D SVG geometry, optional 3D Plotly structure, and hoverable S11/VSWR response curves for each forward result. |
+| **CST data story** | Dataset-backed Lp/Wp scatter and resonant-frequency histogram, sampled deterministically from the CST CSV. |
 | **Validation** | Leave-one-out fidelity benchmark against the CST dataset, with MAE / P90 / Max / R² for every predicted quantity. |
 | **AETHER assistant** | Groq-backed chat for questions about the design and the results. |
 
@@ -81,13 +95,18 @@ plain-average behaviour exactly, for comparison against previously published res
 ## Repository layout
 
 ```
-10_web_app.py       Streamlit app + prediction engine (UI, engine, validation)
-engine_v2.py        Two-Brain 2.0 inference path (main brain + dip specialist)
-antenna_viz.py      matplotlib geometry rendering for the 12 patch shapes
-antenna_charts.py   interactive Plotly charts (S11/VSWR, comparison, design space, parity)
-assets/             spu_logo.png (source) and spu_logo_nav.png (128 px, used by the UI)
-Dockerfile          image build; pre-fetches the model at build time
-fly.toml            fly.io deployment config
+backend/main.py         FastAPI routes, background engine warm-up, static serving, validation jobs
+backend/engine_core.py  API-side copy of legacy numerical functions; no algorithmic rewrite
+backend/aether.py       Server-side Groq adapter and legacy model-fallback order
+frontend/               Approved warm HTML/CSS/JS site, local fonts, local Plotly runtime
+10_web_app.py           Untouched legacy Streamlit app (rollback/reference only)
+engine_v2.py            Untouched Two-Brain 2.0 inference path
+antenna_viz.py          Existing 12-shape geometry renderer + animated HTML helper
+antenna_charts.py       Existing Plotly/SVG chart helpers
+assets/                 AntDesigner and SPU logo assets, served at /assets
+Dockerfile              API image build; pre-fetches model + dataset at build time
+fly.toml                Fly.io port-8080 health-check configuration
+tests/test_parity.py    Original-function versus FastAPI numerical-parity verification
 ```
 
 ### External assets
@@ -102,28 +121,73 @@ Models and datasets are **not** in git. They live in the Hugging Face model repo
 | `antenna_data_cleaned.csv` | ~7.8 MB | CST simulation dataset (151 frequency columns) |
 | `s11_dip_specialist.pkl` | — | Dip specialist. **Currently deleted from the Hub** — see Known issues. |
 
-`scaler_geo.pkl` and `scaler_perf.pkl` (~1.6 KB each) *are* in git, as ordinary files.
+`scaler_geo.pkl` and `scaler_perf.pkl` (~1.6 KB each) are tracked through Git LFS and
+must be materialized as real pickle bytes before local inference or a Docker/Fly build.
 
 ## Running locally
 
 ```bash
-python -m venv .venv && source .venv/bin/activate
+python -m venv .venv
+# macOS/Linux
+source .venv/bin/activate
+# Windows PowerShell: .venv\Scripts\Activate.ps1
 pip install -r requirements.txt
-streamlit run 10_web_app.py
+uvicorn backend.main:app --host 0.0.0.0 --port 8080
 ```
 
-For the AETHER assistant, copy `.streamlit/secrets.toml.example` to
-`.streamlit/secrets.toml` and set `GROQ_API_KEY`.
+Open `http://localhost:8080`. The `/health` endpoint answers immediately while the
+model loads in a background thread. The browser only calls same-origin `/api/*`
+routes.
+
+For AETHER, set `GROQ_API_KEY` in the server environment or Fly secrets. Never put it
+in frontend code. The legacy `.streamlit/secrets.toml.example` remains only for the
+untouched Streamlit rollback source; Streamlit is intentionally not installed in the
+production dependency set.
+
+## Verification
+
+Run these from a provisioned checkout after `pip install -r requirements.txt`:
+
+```bash
+python tests/test_engine_core_source.py
+python tests/test_api_shell.py
+python tests/test_parity.py
+```
+
+The first test statically proves that retained numerical function bodies and scientific
+constants in `backend/engine_core.py` match the pre-UI part of untouched
+`10_web_app.py`. The shell test verifies the FastAPI/static-app contract without running
+inference. The parity test compares 48 forward requests and 36 inverse requests with the
+original function bodies, including the 1000-point response arrays, at `1e-9` absolute
+tolerance. It deliberately reports **NOT VERIFIED** rather than passing when TensorFlow,
+the model/CSV, or materialized scaler files are unavailable.
 
 ## Deployment
 
-```bash
-fly deploy --build-arg HF_REPO=kara-nawzad/antenna-models
+From a Windows checkout with the **real** `scaler_geo.pkl` and `scaler_perf.pkl` bytes
+materialized, deployment remains a single command:
+
+```powershell
+fly deploy
 ```
 
-The Dockerfile downloads the model and dataset **during the image build**, so a cold
-start does no Hub I/O at all. If the Hub is unreachable at build time the build still
-succeeds and the app falls back to downloading on first request.
+The Dockerfile installs the server dependencies and downloads the model plus CST CSV
+**during image build**. It intentionally fails early if the scalers are unresolved
+Git-LFS pointer files, rather than deploying an app that cannot initialize.
+
+For a local container verification:
+
+```bash
+docker build -t antdesigner .
+docker run --rm -p 8080:8080 antdesigner
+curl http://localhost:8080/health
+```
+
+### Rollback
+
+`10_web_app.py` is retained unchanged. After a merged deployment, roll back by
+reverting the rebuild commit/PR on `main`, pushing that revert, then running `fly deploy`
+again. This restores the previous Streamlit Docker entrypoint from git history.
 
 ---
 
