@@ -90,10 +90,14 @@ class ApiShellTests(unittest.TestCase):
         self.assertIn("AntDesigner — AI-Based CPW Antenna Synthesis", index.text)
         self.assertNotIn("__ASSET_VERSION__", index.text)
         self.assertIn("/static/js/app.js?v=", index.text)
+        self.assertIn("/assets/antdesigner_logo_nav.jpg?v=", index.text)
         self.assertEqual(index.headers.get("cache-control"), "no-cache")
         css = self.client.get("/static/css/app.css")
         self.assertEqual(css.status_code, 200)
         self.assertIn("max-age=31536000", css.headers.get("cache-control", ""))
+        logo = self.client.get("/assets/antdesigner_logo_nav.jpg")
+        self.assertEqual(logo.status_code, 200)
+        self.assertEqual(logo.headers.get("content-type"), "image/jpeg")
 
     def test_aether_without_a_key_returns_the_legacy_info_message(self) -> None:
         with patch.dict(os.environ, {"GROQ_API_KEY": ""}, clear=False):
