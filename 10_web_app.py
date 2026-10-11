@@ -8,7 +8,10 @@ import joblib
 import streamlit as st
 import streamlit.components.v1 as components
 import matplotlib.pyplot as plt
+import antdesigner_theme as adtheme
 import antenna_charts
+from antenna_charts import s11_vswr_animated_html
+from antenna_viz import antenna_animated_html
 from scipy.interpolate import make_interp_spline
 from groq import Groq
 from groq import AuthenticationError as GroqAuthError
@@ -1007,408 +1010,30 @@ def run_startup_healthcheck(_db, _fwd, _s_geo, _s_perf):
     return report
 
 
-st.set_page_config(page_title="SPU Neural Antenna Synthesis", layout="wide")
+st.set_page_config(
+    page_title="AntDesigner — AI-Based CPW Antenna Synthesis",
+    page_icon=os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "antdesigner_favicon.png"),
+    layout="wide",
+)
 
 _app_dir = os.path.dirname(os.path.abspath(__file__))
-_logo_path = ""
-# Prefer the nav-optimised 128px render. The original spu_logo.png is 1290x1044 /
-# 294 KB and is displayed at 46x46 -- base64-inlining it pushed ~383 KB over the
-# websocket on EVERY Streamlit rerun. The nav version is ~13.8 KB (28x smaller).
-for _lp in (
-    os.path.join(_app_dir, "assets", "spu_logo_nav.png"),
-    os.path.join(_app_dir, "assets", "spu_logo.png"),
-    os.path.join(_app_dir, "spu_logo_nav.png"),
-    os.path.join(_app_dir, "spu_logo.png"),
-):
-    if os.path.isfile(_lp):
-        _logo_path = _lp
-        break
-_logo_b64 = ""
-if _logo_path:
-    with open(_logo_path, "rb") as _logo_file:
-        _logo_b64 = base64.b64encode(_logo_file.read()).decode()
-_logo_img = (
-    f'<img src="data:image/png;base64,{_logo_b64}" alt="Sulaymaniyah Polytechnic University" class="nav-logo-img" />'
-    if _logo_b64
-    else '<span class="nav-logo-fallback">SPU</span>'
-)
 
-st.markdown(
-    f"""
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap');
-html {{ scroll-behavior: auto; }}
-.stApp, [data-testid="stAppViewContainer"] {{
-  background: linear-gradient(165deg, #343a44 0%, #2f3540 38%, #3a404c 72%, #323844 100%) !important;
-  color: #eceff3;
-  font-family: 'Plus Jakarta Sans', sans-serif;
-}}
-[data-testid="stHeader"], [data-testid="stToolbar"] {{ background: transparent !important; }}
-section.main > div {{ background: transparent !important; }}
-header {{ visibility: hidden; }}
-#MainMenu, footer {{ visibility: hidden; }}
-.navbar {{
-  position: fixed; top: 0; left: 0; width: 100%; height: 78px;
-  background: rgba(48, 53, 62, 0.88);
-  backdrop-filter: blur(16px);
-  display: flex; align-items: center; justify-content: center;
-  border-bottom: 1px solid rgba(255, 152, 60, 0.4);
-  z-index: 1000000;
-  box-shadow: 0 6px 28px rgba(20, 22, 28, 0.35);
-  transition: box-shadow 0.35s ease;
-}}
-.nav-content {{
-  width: 92%; max-width: 1320px;
-  display: flex; justify-content: space-between; align-items: center; gap: 20px;
-}}
-.nav-brand {{
-  display: flex; align-items: center; gap: 14px; min-width: 0;
-}}
-.nav-logo-img {{
-  height: 46px; width: 46px; object-fit: contain;
-  padding: 5px;
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 152, 60, 0.22);
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
-  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.2));
-  transition: transform 0.4s ease, box-shadow 0.4s ease, border-color 0.4s ease;
-}}
-.nav-logo-img:hover {{
-  transform: scale(1.05);
-  border-color: rgba(255, 152, 60, 0.5);
-  box-shadow: 0 8px 22px rgba(255, 140, 0, 0.18);
-}}
-.nav-logo-fallback {{
-  font-weight: 700; color: #ff9f43; font-size: 1.1rem; letter-spacing: 0.04em;
-}}
-.nav-brand-text {{
-  font-weight: 600; font-size: 0.95rem; color: #e8eaed; line-height: 1.25;
-  letter-spacing: 0.01em;
-}}
-.nav-brand-text span {{ display: block; font-size: 0.72rem; color: #9aa0a8; font-weight: 400; }}
-.nav-links {{ display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }}
-.nav-item {{
-  text-decoration: none !important; color: #d8dce2 !important;
-  font-weight: 600; font-size: 0.78rem; padding: 9px 16px;
-  border-radius: 10px; background: rgba(255,255,255,0.04);
-  border: 1px solid rgba(255,255,255,0.08);
-  letter-spacing: 0.03em;
-  transition: color 0.3s ease, background 0.3s ease, border-color 0.3s ease, transform 0.3s ease, box-shadow 0.3s ease;
-}}
-.nav-item:hover {{
-  color: #fff !important; background: rgba(255, 140, 0, 0.14);
-  border-color: rgba(255, 140, 0, 0.45); transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(255, 140, 0, 0.12);
-}}
-.nav-item.active {{
-  color: #fff !important; background: rgba(255, 140, 0, 0.22);
-  border-color: rgba(255, 140, 0, 0.6);
-  box-shadow: 0 0 0 1px rgba(255, 152, 60, 0.15) inset;
-}}
-.section-anchor {{
-  display: block; height: 0; margin: 0; padding: 0; border: 0;
-  scroll-margin-top: 96px; overflow: hidden; pointer-events: none;
-}}
-.nav-home-link {{
-  text-decoration: none !important; color: inherit !important;
-  display: flex; align-items: center; gap: 14px; min-width: 0; cursor: pointer;
-}}
-.section-reveal {{
-  animation: sectionReveal 0.85s cubic-bezier(0.22, 1, 0.36, 1) both;
-}}
-@keyframes sectionReveal {{
-  0% {{ opacity: 0.55; transform: translateY(22px); filter: blur(2px); }}
-  100% {{ opacity: 1; transform: translateY(0); filter: blur(0); }}
-}}
-.hero-container {{
-  position: relative;
-  width: min(1080px, 94%);
-  min-height: 82vh;
-  margin: 100px auto 32px;
-  padding: 72px 48px 64px;
-  display: flex; flex-direction: column; align-items: center; justify-content: center;
-  text-align: center;
-  border-radius: 40px;
-  overflow: hidden;
-  background: linear-gradient(155deg, #3d434e 0%, #363c46 45%, #3a404a 100%);
-  border: 1px solid rgba(255, 255, 255, 0.09);
-  box-shadow: 0 28px 64px rgba(12, 14, 20, 0.38);
-  animation: heroEnter 1s cubic-bezier(0.22, 1, 0.36, 1) both;
-}}
-.hero-container::after {{
-  content: '';
-  position: absolute; inset: 0; border-radius: 40px; pointer-events: none;
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
-}}
-.hero-ambient {{
-  position: absolute; inset: 0; z-index: 0; pointer-events: none;
-  border-radius: 40px; overflow: hidden;
-}}
-.hero-glow {{
-  position: absolute; border-radius: 50%; filter: blur(55px);
-  animation: glowDrift 16s ease-in-out infinite;
-}}
-.hero-glow-a {{
-  width: 340px; height: 340px; left: -8%; top: 10%;
-  background: rgba(255, 150, 80, 0.09);
-}}
-.hero-glow-b {{
-  width: 280px; height: 280px; right: -5%; bottom: 5%;
-  background: rgba(255, 180, 110, 0.06);
-  animation-delay: -6s; animation-duration: 20s;
-}}
-.hero-shimmer {{
-  position: absolute; inset: 0;
-  background: linear-gradient(105deg, transparent 40%, rgba(255,255,255,0.03) 50%, transparent 60%);
-  animation: shimmerPass 9s ease-in-out infinite;
-}}
-@keyframes glowDrift {{
-  0%, 100% {{ transform: translate(0, 0) scale(1); }}
-  50% {{ transform: translate(18px, -12px) scale(1.05); }}
-}}
-@keyframes shimmerPass {{
-  0%, 100% {{ transform: translateX(-30%); opacity: 0; }}
-  45%, 55% {{ opacity: 1; }}
-  100% {{ transform: translateX(30%); opacity: 0; }}
-}}
-@keyframes heroEnter {{
-  from {{ opacity: 0; transform: translateY(24px); }}
-  to {{ opacity: 1; transform: translateY(0); }}
-}}
-.hero-content {{
-  position: relative; z-index: 1;
-  display: flex; flex-direction: column; align-items: center;
-  max-width: 760px;
-}}
-.hero-badge {{
-  display: inline-block; padding: 8px 18px; margin-bottom: 22px;
-  border-radius: 999px; font-size: 0.75rem; font-weight: 600;
-  letter-spacing: 0.12em; text-transform: uppercase;
-  color: #e8c9a8; background: rgba(255, 140, 0, 0.06);
-  border: 1px solid rgba(255, 152, 60, 0.18);
-  animation: badgeFloat 4s ease-in-out infinite;
-}}
-@keyframes badgeFloat {{
-  0%, 100% {{ transform: translateY(0); }}
-  50% {{ transform: translateY(-4px); }}
-}}
-.hero-h1 {{
-  font-size: clamp(2.4rem, 5.5vw, 4rem); font-weight: 800;
-  line-height: 1.08; margin-bottom: 20px; letter-spacing: -0.03em;
-  background: linear-gradient(120deg, #ffffff 0%, #f0f2f5 55%, #e8d4bc 100%);
-  background-size: 200% auto;
-  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
-  background-clip: text;
-  animation: titleShine 8s ease-in-out infinite;
-}}
-@keyframes titleShine {{
-  0%, 100% {{ background-position: 0% center; }}
-  50% {{ background-position: 100% center; }}
-}}
-.hero-p {{
-  font-size: 1.15rem; max-width: 700px; line-height: 1.8;
-  color: #c5cdd8; font-weight: 400;
-  animation: fadeUp 0.9s ease 0.15s both;
-}}
-.hero-cta-row {{
-  display: flex; gap: 12px; flex-wrap: wrap; justify-content: center;
-  margin-top: 32px;
-}}
-.hero-chip {{
-  padding: 10px 16px; border-radius: 14px; font-size: 0.82rem;
-  color: #dde2e9; background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.1);
-  animation: fadeUp 0.8s ease both;
-  transition: transform 0.35s ease, border-color 0.35s ease, background 0.35s ease, box-shadow 0.35s ease;
-  cursor: default;
-}}
-.hero-chip:hover {{
-  transform: translateY(-3px);
-  border-color: rgba(255, 152, 60, 0.28);
-  background: rgba(255, 140, 0, 0.08);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
-}}
-.hero-chip:nth-child(1) {{ animation-delay: 0.05s; }}
-.hero-chip:nth-child(2) {{ animation-delay: 0.12s; }}
-.hero-chip:nth-child(3) {{ animation-delay: 0.19s; }}
-.hero-chip:nth-child(4) {{ animation-delay: 0.26s; }}
-.hero-rule {{
-  width: 48px; height: 3px; margin-top: 36px; border-radius: 2px;
-  background: linear-gradient(90deg, transparent, rgba(255, 152, 60, 0.45), transparent);
-  opacity: 0.7;
-  animation: rulePulse 3s ease-in-out infinite;
-}}
-@keyframes rulePulse {{
-  0%, 100% {{ opacity: 0.5; width: 40px; }}
-  50% {{ opacity: 0.85; width: 56px; }}
-}}
-.drive-btn, .hero-drive-btn {{
-  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
-  margin-top: 28px; padding: 13px 26px;
-  border-radius: 14px; font-weight: 600; font-size: 0.92rem;
-  text-decoration: none !important; color: #fff !important;
-  background: linear-gradient(135deg, rgba(255, 140, 0, 0.9), rgba(230, 115, 0, 0.95));
-  border: 1px solid rgba(255, 200, 120, 0.45);
-  box-shadow: 0 10px 28px rgba(255, 140, 0, 0.25);
-  transition: transform 0.35s ease, box-shadow 0.35s ease, filter 0.35s ease;
-}}
-.drive-btn:hover, .hero-drive-btn:hover {{
-  transform: translateY(-3px) scale(1.02);
-  box-shadow: 0 14px 36px rgba(255, 140, 0, 0.38);
-  filter: brightness(1.06);
-}}
-.nav-item.is-scrolling {{
-  animation: navPulse 0.55s ease;
-}}
-@keyframes navPulse {{
-  0% {{ transform: scale(1); }}
-  40% {{ transform: scale(0.96); box-shadow: 0 0 0 4px rgba(255, 140, 0, 0.25); }}
-  100% {{ transform: scale(1); }}
-}}
-.section-title {{
-  font-size: clamp(1.8rem, 3.5vw, 2.6rem); font-weight: 700;
-  margin: 100px 0 36px; text-align: center; letter-spacing: -0.02em;
-  color: #ffffff; animation: fadeUp 0.7s ease both;
-}}
-.section-subtitle {{
-  text-align: center; color: #9aa3af; max-width: 720px; margin: -20px auto 48px;
-  font-size: 1.05rem; line-height: 1.7;
-}}
-.intro-panel {{
-  max-width: 960px; margin: 0 auto 80px; padding: 48px 52px;
-  background: rgba(52, 58, 68, 0.72); border: 1px solid rgba(255, 152, 60, 0.15);
-  border-radius: 24px; line-height: 1.85; color: #d2d8e0;
-  animation: fadeUp 0.8s ease 0.1s both;
-  box-shadow: 0 16px 40px rgba(22, 25, 32, 0.25);
-}}
-.intro-panel h3 {{ color: #ff9f43; font-weight: 600; margin: 28px 0 12px; font-size: 1.1rem; }}
-.intro-panel h3:first-child {{ margin-top: 0; }}
-.intro-panel p {{ margin: 0 0 14px; }}
-.intro-panel ul {{ margin: 8px 0 0; padding-left: 1.2rem; }}
-.intro-panel li {{ margin-bottom: 6px; }}
-.intro-credits {{
-  margin-top: 28px; padding-top: 22px;
-  border-top: 1px solid rgba(255,255,255,0.08);
-  display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
-}}
-.intro-credits h4 {{ color: #fff; font-size: 0.92rem; margin: 0 0 10px; font-weight: 600; }}
-.info-card {{
-  background: rgba(52, 58, 68, 0.75); border: 1px solid rgba(255,255,255,0.09);
-  border-radius: 20px; padding: 36px 32px; text-align: center; height: 100%;
-  transition: transform 0.35s ease, border-color 0.35s ease, box-shadow 0.35s ease;
-  animation: fadeUp 0.75s ease both;
-}}
-.info-card:hover {{
-  transform: translateY(-4px);
-  border-color: rgba(255, 140, 0, 0.28);
-  box-shadow: 0 14px 32px rgba(0,0,0,0.22);
-}}
-.info-card h3 {{ color: #ff9f43; font-size: 1.25rem; margin-bottom: 14px; font-weight: 600; }}
-.info-card p {{ opacity: 0.92; line-height: 1.75; font-size: 1rem; color: #c5cbd3; margin: 0; }}
-.stButton > button {{
-  background: rgba(58, 64, 74, 0.95) !important;
-  color: #f5f6f8 !important;
-  border: 1px solid rgba(255,255,255,0.14) !important;
-  border-radius: 12px !important;
-  padding: 12px 32px !important;
-  font-weight: 600 !important;
-  letter-spacing: 0.04em;
-  transition: background 0.35s ease, border-color 0.35s ease, transform 0.3s ease, box-shadow 0.35s ease !important;
-}}
-.stButton > button:hover {{
-  background: linear-gradient(135deg, #ff8c00, #e67300) !important;
-  border-color: rgba(255, 140, 0, 0.6) !important;
-  transform: translateY(-2px);
-  box-shadow: 0 10px 28px rgba(255, 140, 0, 0.28) !important;
-}}
-.stButton > button:active {{ transform: translateY(0); }}
-.result-banner {{
-  background: rgba(46, 125, 50, 0.22);
-  border: 1px solid rgba(129, 199, 132, 0.45);
-  color: #c8e6c9;
-  padding: 12px 18px;
-  border-radius: 12px;
-  margin: 0 0 18px 0;
-  text-align: center;
-  font-weight: 600;
-  font-size: 0.95rem;
-}}
-.footer-text {{
-  margin-top: 120px; padding: 56px 24px 80px; text-align: center;
-  border-top: 1px solid rgba(255,255,255,0.08); color: #8b939e;
-  font-size: 0.95rem; line-height: 1.8;
-}}
-.footer-text b {{ color: #d0d5dc; font-weight: 600; }}
-[data-testid="stMetricValue"] {{ color: #ff9f43; font-weight: 700; }}
-[data-testid="stMetricLabel"] {{ color: #a8b0ba !important; }}
-[data-testid="stChatMessage"] {{
-  background: rgba(52, 58, 68, 0.92) !important;
-  border: 1px solid rgba(255,255,255,0.07) !important;
-  border-radius: 16px !important;
-}}
-.block-container {{ padding-top: 2rem; max-width: 1200px; }}
-div[data-testid="stSlider"], div[data-testid="stNumberInput"], div[data-testid="stSelectbox"] {{
-  background: transparent;
-}}
-[data-testid="stWidgetLabel"], label, .stMarkdown p, .stCaption {{ color: #d8dee6 !important; }}
-div[data-testid="stExpander"], .health-hidden {{ display: none !important; }}
-.status-heading {{ text-align: center; margin-top: 40px; font-weight: 700; color: #fff; }}
-.panel-h {{
-  font-size: 0.95rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
-  color: #ff9838; margin: 0 0 12px 0;
-}}
-/* Plotly containers: match the app's card treatment so the charts sit in the theme
-   instead of floating as white boxes over the dark background. */
-[data-testid="stPlotlyChart"] .js-plotly-plot,
-[data-testid="stPlotlyChart"] .plot-container {{
-  background: rgba(255,255,255,0.035);
-  border: 1px solid rgba(255,255,255,0.08);
-  border-radius: 14px; padding: 6px;
-}}
-[data-baseweb="tab-panel"] {{ outline: none; }}
-.antenna-plot-wrap + div [data-testid="stPyplot"],
-.antenna-plot-wrap ~ div [data-testid="stPyplot"] {{
-  display: flex !important; justify-content: center !important;
-}}
-.antenna-plot-wrap + div [data-testid="stPyplot"] img,
-.antenna-plot-wrap ~ div [data-testid="stPyplot"] img {{
-  max-width: min(360px, 92vw) !important;
-  max-height: 420px !important;
-  width: auto !important;
-  height: auto !important;
-  margin: 8px auto 20px !important;
-  border-radius: 10px;
-}}
-@keyframes fadeUp {{
-  from {{ opacity: 0; transform: translateY(18px); }}
-  to {{ opacity: 1; transform: translateY(0); }}
-}}
-@media (max-width: 900px) {{
-  .nav-links {{ display: none; }}
-  .intro-credits {{ grid-template-columns: 1fr; }}
-  .hero-container {{ padding: 48px 24px; border-radius: 28px; margin-top: 88px; }}
-}}
-</style>
-<div class="navbar">
-  <div class="nav-content">
-    <a href="#overview" class="nav-brand nav-home-link" title="Home">
-      {_logo_img}
-      <div class="nav-brand-text">Neural Antenna Synthesis<span>Sulaymaniyah Polytechnic University</span></div>
-    </a>
-    <div class="nav-links">
-      <a href="#overview" class="nav-item">Home</a>
-      <a href="#introduction" class="nav-item">Introduction</a>
-      <a href="#intel" class="nav-item">Method</a>
-      <a href="#simulator" class="nav-item">Forward</a>
-      <a href="#designer" class="nav-item">Inverse</a>
-      <a href="#assistant" class="nav-item">AETHER</a>
-    </div>
-  </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+
+def _img_data_uri(filename):
+    """Return a base64 data URI for an image in assets/ ("" if the file is missing)."""
+    _p = os.path.join(_app_dir, "assets", filename)
+    if not os.path.isfile(_p):
+        return ""
+    with open(_p, "rb") as _f:
+        return "data:image/png;base64," + base64.b64encode(_f.read()).decode()
+
+
+# AntDesigner wordmark for the top bar, SPU crest for the team block (inlined once).
+AD_LOGO_URI = _img_data_uri("antdesigner_logo_light.png")
+SPU_LOGO_URI = _img_data_uri("spu_logo_nav.png")
+
+adtheme.apply_theme()
+st.markdown(adtheme.render_header(AD_LOGO_URI), unsafe_allow_html=True)
 
 try:
     from antenna_viz import draw_antenna
@@ -1441,724 +1066,580 @@ if "lp_input" not in st.session_state:
 if "wp_input" not in st.session_state:
     st.session_state.wp_input = st.session_state.wp_val
 
-st.markdown('<span id="overview" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown(
-    """
-<div class="hero-container">
-  <div class="hero-ambient">
-    <div class="hero-glow hero-glow-a"></div>
-    <div class="hero-glow hero-glow-b"></div>
-    <div class="hero-shimmer"></div>
-  </div>
-  <div class="hero-content">
-    <span class="hero-badge">Graduation Research Platform</span>
-    <h1 class="hero-h1">AI-Based CPW Antenna Synthesis</h1>
-    <p class="hero-p">Interactive design environment for coplanar waveguide (CPW) microstrip patch antennas from 1.0 to 7.0 GHz — forward response prediction and inverse geometry synthesis powered by CST-trained surrogates.</p>
-    <div class="hero-cta-row">
-      <span class="hero-chip">12 patch shapes</span>
-      <span class="hero-chip">4 shape families</span>
-      <span class="hero-chip">S11 &amp; VSWR curves</span>
-      <span class="hero-chip">CST-anchored engine</span>
-    </div>
-    <a class="hero-drive-btn" href="https://drive.google.com/drive/folders/1DtTck0vSXKJWLYIGdFh75lOmcNlXlypJ" target="_blank" rel="noopener noreferrer">Research Papers &amp; Project Files (Google Drive)</a>
-    <div class="hero-rule"></div>
-  </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
+tabs = st.tabs(["Home", "Forward", "Inverse", "AETHER", "Method & Validation"])
 
-st.markdown('<span id="introduction" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="section-title">Project Introduction</div>', unsafe_allow_html=True)
-st.markdown(
-    """
-<div class="intro-panel">
-  <p><strong>Project title:</strong> AI-Based CPW Microstrip Antenna Synthesis Using Simulation-Trained Neural Surrogates.</p>
-  <p>This graduation project addresses the design challenge of <strong>CPW-fed microstrip patch antennas</strong>
-  operating between <strong>1.0 and 7.0 GHz</strong>. Instead of running a full electromagnetic simulation for every
-  design trial, we built a web platform that estimates return loss (S11), bandwidth, gain, efficiency, and VSWR from
-  patch dimensions — and can suggest geometry when a target resonance frequency is specified.</p>
-  <h3>Antenna structure — 12 shapes, 4 families</h3>
-  <p>All designs share a consistent substrate and feed topology: FR-4-style substrate, coplanar waveguide (CPW) feed,
-  and a radiating patch whose <strong>length (Lp)</strong> and <strong>width (Wp)</strong> are varied between 5 and 40 mm.
-  The platform supports exactly <strong>12 patch shapes</strong>, grouped into <strong>4 families</strong> (three shapes per family),
-  matching the CST Microwave Studio dataset:</p>
-  <ul>
-    <li><strong>Rectangular family:</strong> Rectangle, Stepped, T-Shape</li>
-    <li><strong>Circular family:</strong> Ellipse, Semi-Circle, Pie-Sector</li>
-    <li><strong>Triangular family:</strong> Isosceles Triangle, Inverted Trapezoid, Diamond</li>
-    <li><strong>Polygonal family:</strong> Hexagon (Flat-top), Pentagon (House), Cross</li>
-  </ul>
-  <p style="margin-top:12px;">
-    <a class="drive-btn" href="https://drive.google.com/drive/folders/1DtTck0vSXKJWLYIGdFh75lOmcNlXlypJ" target="_blank" rel="noopener noreferrer">Open Research Library on Google Drive</a>
-  </p>
-  <h3>Methodology</h3>
-  <p>A large batch of CST simulations was used to build a structured dataset. A forward neural model learns the mapping from
-  geometry to performance and full S11 curves. Predictions are <strong>anchored to the simulation database</strong> (exact match,
-  interpolation, or nearest-neighbour blending) so results stay physically consistent. The inverse module searches patch dimensions
-  within a shape family to match a user-defined target frequency, with optional priorities for gain or bandwidth.</p>
-  <h3>Platform features</h3>
-  <ul>
-    <li><strong>Forward simulation:</strong> enter Lp, Wp, and shape — view metrics, S11/VSWR plots, and a 2D geometry sketch.</li>
-    <li><strong>Inverse design:</strong> choose one of the 4 families and a target frequency — obtain recommended Lp/Wp among that family&apos;s 3 shapes.</li>
-    <li><strong>Validation tools:</strong> internal self-tests compare engine output against the CST dataset for quality assurance.</li>
-    <li><strong>AETHER Assistant:</strong> conversational help for interpreting parameters and results (Groq LLM).</li>
-  </ul>
-  <h3>Scope and limitations</h3>
-  <p>Results are valid within the trained geometry and frequency ranges of the dataset. The tool supports academic exploration,
-  comparison, and demonstration — not a replacement for final sign-off simulation when fabricating hardware.</p>
-  <div class="intro-credits">
-    <div>
-      <h4>Prepared by</h4>
-      <ul>
-        <li>Arwin Hunar</li>
-        <li>Dunya Anwar</li>
-        <li>Kara Nawzad</li>
-        <li>Khazan Jafaar</li>
-        <li>Ramyar Aram</li>
-        <li>Ranw Jamil</li>
-      </ul>
-    </div>
-    <div>
-      <h4>Supervised by</h4>
-      <ul>
-        <li>Dr. Halgurd N. Awl</li>
-      </ul>
-    </div>
-  </div>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-st.markdown('<span id="intel" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="section-title">System Overview</div>', unsafe_allow_html=True)
-c1, c2 = st.columns(2)
-with c1:
+with tabs[0]:
+    st.markdown(adtheme.render_hero(), unsafe_allow_html=True)
+    st.markdown(adtheme.render_how_it_works(), unsafe_allow_html=True)
+    st.markdown(adtheme.section_title("Project Introduction"), unsafe_allow_html=True)
     st.markdown(
         """
-<div class="info-card">
-  <h3>Forward Prediction</h3>
-  <p>Predicts resonance, bandwidth, and S11 from patch length, width, and any of the 12 shapes. Results are aligned with nearest CST simulation points in the dataset when available.</p>
-</div>
-""",
+    <div class="intro-panel">
+      <p><strong>Project title:</strong> AI-Based CPW Microstrip Antenna Synthesis Using Simulation-Trained Neural Surrogates.</p>
+      <p>This graduation project addresses the design challenge of <strong>CPW-fed microstrip patch antennas</strong>
+      operating between <strong>1.0 and 7.0 GHz</strong>. Instead of running a full electromagnetic simulation for every
+      design trial, we built a web platform that estimates return loss (S11), bandwidth, gain, efficiency, and VSWR from
+      patch dimensions — and can suggest geometry when a target resonance frequency is specified.</p>
+      <h3>Antenna structure — 12 shapes, 4 families</h3>
+      <p>All designs share a consistent substrate and feed topology: FR-4-style substrate, coplanar waveguide (CPW) feed,
+      and a radiating patch whose <strong>length (Lp)</strong> and <strong>width (Wp)</strong> are varied between 5 and 40 mm.
+      The platform supports exactly <strong>12 patch shapes</strong>, grouped into <strong>4 families</strong> (three shapes per family),
+      matching the CST Microwave Studio dataset:</p>
+      <ul>
+        <li><strong>Rectangular family:</strong> Rectangle, Stepped, T-Shape</li>
+        <li><strong>Circular family:</strong> Ellipse, Semi-Circle, Pie-Sector</li>
+        <li><strong>Triangular family:</strong> Isosceles Triangle, Inverted Trapezoid, Diamond</li>
+        <li><strong>Polygonal family:</strong> Hexagon (Flat-top), Pentagon (House), Cross</li>
+      </ul>
+      <p style="margin-top:12px;">
+        <a class="drive-btn" href="https://drive.google.com/drive/folders/1DtTck0vSXKJWLYIGdFh75lOmcNlXlypJ" target="_blank" rel="noopener noreferrer">Open Research Library on Google Drive</a>
+      </p>
+      <h3>Methodology</h3>
+      <p>A large batch of CST simulations was used to build a structured dataset. A forward neural model learns the mapping from
+      geometry to performance and full S11 curves. Predictions are <strong>anchored to the simulation database</strong> (exact match,
+      interpolation, or nearest-neighbour blending) so results stay physically consistent. The inverse module searches patch dimensions
+      within a shape family to match a user-defined target frequency, with optional priorities for gain or bandwidth.</p>
+      <h3>Platform features</h3>
+      <ul>
+        <li><strong>Forward simulation:</strong> enter Lp, Wp, and shape — view metrics, S11/VSWR plots, and a 2D geometry sketch.</li>
+        <li><strong>Inverse design:</strong> choose one of the 4 families and a target frequency — obtain recommended Lp/Wp among that family&apos;s 3 shapes.</li>
+        <li><strong>Validation tools:</strong> internal self-tests compare engine output against the CST dataset for quality assurance.</li>
+        <li><strong>AETHER Assistant:</strong> conversational help for interpreting parameters and results (Groq LLM).</li>
+      </ul>
+      <h3>Scope and limitations</h3>
+      <p>Results are valid within the trained geometry and frequency ranges of the dataset. The tool supports academic exploration,
+      comparison, and demonstration — not a replacement for final sign-off simulation when fabricating hardware.</p>
+    </div>
+    """,
         unsafe_allow_html=True,
     )
-with c2:
-    st.markdown(
-        """
-<div class="info-card">
-  <h3>Inverse Design</h3>
-  <p>Given a target frequency and one of four families (Rectangular, Circular, Triangular, Polygonal), searches Lp/Wp across that family&apos;s three shapes for the best match.</p>
-</div>
-""",
-        unsafe_allow_html=True,
-    )
-
-st.markdown("#### Active engine components")
-_e1, _e2, _e3, _e4 = st.columns(4)
-_e1.metric("CST dataset", f"{len(db):,} rows")
-_e2.metric("Keras surrogate", "loaded" if fwd is not None else "missing")
-_e3.metric("Dip specialist", "loaded" if v2_dip_specialist is not None else "missing")
-_e4.metric("Blending", "aligned" if RESONANCE_ALIGN else "plain average")
-if v2_dip_specialist is None:
-    st.caption(
-        "The dip specialist (`s11_dip_specialist.pkl`) is not present in the model repo, so the "
-        "engine runs the **main brain only**. Predictions are produced by interpolating the CST "
-        "dataset; the surrogate is used only as a fallback or when *Use ML refinement* is enabled. "
-        "Labels in this app now report that accurately."
-    )
-
-st.markdown('<span id="simulator" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="section-title">Forward Simulation</div>', unsafe_allow_html=True)
-_, mid_f, _ = st.columns([1, 2.5, 1])
-with mid_f:
-    st.markdown("**Patch Length (Lp): slider + manual input (5.00-40.00 mm)**")
-    lp_c1, lp_c2 = st.columns([2, 1])
-    with lp_c1:
-        st.slider("Lp Slider", 5.0, 40.0, step=0.01, key="lp_slider", on_change=sync_lp_from_slider)
-    with lp_c2:
-        st.number_input("Lp Type", min_value=5.0, max_value=40.0, step=0.01, format="%.2f", key="lp_input", on_change=sync_lp_from_input)
-
-    st.markdown("**Patch Width (Wp): slider + manual input (5.00-40.00 mm)**")
-    wp_c1, wp_c2 = st.columns([2, 1])
-    with wp_c1:
-        st.slider("Wp Slider", 5.0, 40.0, step=0.01, key="wp_slider", on_change=sync_wp_from_slider)
-    with wp_c2:
-        st.number_input("Wp Type", min_value=5.0, max_value=40.0, step=0.01, format="%.2f", key="wp_input", on_change=sync_wp_from_input)
-
-    st.caption(
-        f"Sliders span 5–40 mm on purpose, but the model and the CST data were built from "
-        f"**{TRAINED_MIN_MM:g}–{TRAINED_MAX_MM:g} mm**. Outside that window the app says so "
-        f"and flags the result as extrapolation."
-    )
-
-    shape_name = st.selectbox("Design Profile", list(SHAPES.keys()))
-    shape_id = SHAPES[shape_name]
-    # Two-Brain 2.0 is enabled automatically when available (hidden controls)
-    use_v2 = v2_fwd is not None
-    anchor_strength = 0.3  # gentle blend for best accuracy
-    anchor_window = 30
-    use_ml_refine = st.checkbox(
-        f"Use the trained neural model ({int((1 - ML_BLEND_WEIGHT) * 100)}/"
-        f"{int(ML_BLEND_WEIGHT * 100)} CST / model)",
-        value=True,
-        help=(
-            f"The trained Keras surrogate contributes {int(ML_BLEND_WEIGHT * 100)}% of the "
-            f"predicted curve when the design is more than {ML_BLEND_RADIUS_MM} mm from the "
-            "nearest CST simulation point. Turn this off to see pure CST interpolation, then "
-            "compare the two. Has no effect within the CST-exact radius, where the simulated "
-            "data is used verbatim."
-        ),
-    )
-    st.caption(
-        f"**On:** beyond {ML_BLEND_RADIUS_MM} mm from a CST point the answer is "
-        f"{int((1 - ML_BLEND_WEIGHT) * 100)}% CST interpolation + "
-        f"{int(ML_BLEND_WEIGHT * 100)}% neural model. "
-        f"**Within** {ML_BLEND_RADIUS_MM} mm the simulated curve is used as-is — it is ground "
-        "truth, so there is nothing for the model to improve. "
-        "Re-run **Initiate Simulation** after changing this. "
-        "Use **Engine Validation → Compare CST vs. model** to see which is actually more accurate."
-    )
-
-    if st.button("Initiate Simulation"):
-        with st.spinner("Running high-precision hybrid simulation..."):
-            lp = clamp_5_40(st.session_state.lp_val)
-            wp = clamp_5_40(st.session_state.wp_val)
-            if use_v2 and v2_fwd is not None:
-                # Two-Brain 2.0: use v1 CSV anchoring as primary, v2 ML as fallback
-                # This keeps CSV accuracy while using the improved v2 model when needed
-                res = forward_physics_first_v2(lp, wp, shape_id, v2_fwd, v2_dip_specialist, s_geo, s_perf, db,
-                    use_ml_refine=use_ml_refine,
-                    blend_window_mhz=int(anchor_window),
-                    anchor_strength=float(anchor_strength))
-            else:
-                res = forward_physics_first(lp, wp, shape_id, fwd, s_geo, s_perf, db, use_ml_refine=use_ml_refine)
-            near = nearest_csv_row(db, lp, wp, shape_id)
-            st.session_state.fwd_res = {**res, "lp": lp, "wp": wp, "id": shape_id, "use_ml_refine": use_ml_refine, "use_v2": use_v2}
-            if near is not None:
-                st.session_state.fwd_res["near_row"] = {
-                    "lp": float(near["Lp"]),
-                    "wp": float(near["Wp"]),
-                    "fr": float(near["fr (GHz)"]) if "fr (GHz)" in near.index else np.nan,
-                    "s11": float(near["S11_min"]) if "S11_min" in near.index else np.nan,
-                    "dist": float(near["dist"]),
-                }
-
-if "fwd_res" in st.session_state:
-    d = st.session_state.fwd_res
-    st.markdown(f"<h3 class='status-heading'>Status: {d['status']}</h3>", unsafe_allow_html=True)
-    if out_of_training_range(d.get("lp"), d.get("wp")):
-        st.warning(
-            f"**Outside the trained range.** The model and the CST dataset were built from "
-            f"antennas **{TRAINED_MIN_MM:g}–{TRAINED_MAX_MM:g} mm**. At Lp = "
-            f"{float(d.get('lp', float('nan'))):.2f} mm / Wp = {float(d.get('wp', float('nan'))):.2f} mm "
-            "the app is **extrapolating** — neither the neural network nor the interpolation has "
-            "any real data here, so treat these numbers as a trend, not a prediction. "
-            "Neural networks are especially unreliable outside their training range."
+    st.markdown(adtheme.section_title("System Overview"), unsafe_allow_html=True)
+    c1, c2 = st.columns(2)
+    with c1:
+        st.markdown(
+            """
+    <div class="info-card">
+      <h3>Forward Prediction</h3>
+      <p>Predicts resonance, bandwidth, and S11 from patch length, width, and any of the 12 shapes. Results are aligned with nearest CST simulation points in the dataset when available.</p>
+    </div>
+    """,
+            unsafe_allow_html=True,
         )
-    st.caption(f"Engine mode: {d['engine']}")
-    _ml_requested = bool(d.get("use_ml_refine", False))
-    _ml_blended = "Hybrid" in str(d.get("engine", "")) or "refine" in str(d.get("engine", ""))
-    if _ml_requested:
-        if _ml_blended:
-            st.success("Neural refinement: **active** — CSV anchor blended with the ML surrogate.")
-        elif "near_row" in d and float(d["near_row"].get("dist", 999)) <= 0.60:
-            st.info(
-                "Neural refinement: **not applied** — geometry is within **0.6 mm** of a CST reference point "
-                f"(distance {float(d['near_row']['dist']):.3f} mm). Result uses CST data only."
-            )
-        else:
-            st.info(
-                "Neural refinement: **not applied** for this run — see engine mode above. "
-                "Try different Lp/Wp values farther from dataset points to engage the ML layer."
-            )
-    else:
-        st.caption("Neural refinement: **off** — CST physics / anchor path only.")
-    m1, m2, m3, m4 = st.columns(4)
-    m1.metric("Resonance", f"{d['fr']:.3f} GHz")
-    m2.metric("Bandwidth", f"{d['bw']:.3f} GHz")
-    m3.metric("S11 Min", f"{d['s11']:.2f} dB")
-    m4.metric("VSWR @ Min", f"{d['v'][int(np.argmin(d['c']))]:.3f}")
-    m5, m6 = st.columns(2)
-    m5.metric("Gain", f"{d['gain']:.2f} dBi")
-    m6.metric("Efficiency", f"{d['eff']*100:.2f} %")
-    if "near_row" in d:
-        n = d["near_row"]
+    with c2:
+        st.markdown(
+            """
+    <div class="info-card">
+      <h3>Inverse Design</h3>
+      <p>Given a target frequency and one of four families (Rectangular, Circular, Triangular, Polygonal), searches Lp/Wp across that family&apos;s three shapes for the best match.</p>
+    </div>
+    """,
+            unsafe_allow_html=True,
+        )
+    st.markdown(adtheme.render_team(SPU_LOGO_URI), unsafe_allow_html=True)
+
+with tabs[1]:
+    st.markdown(adtheme.section_title("Forward simulation", "Predict performance from patch dimensions"), unsafe_allow_html=True)
+    left, right = st.columns([1, 2.6])
+    with left:
+        st.markdown("**Patch Length (Lp): slider + manual input (5.00-40.00 mm)**")
+        lp_c1, lp_c2 = st.columns([2, 1])
+        with lp_c1:
+            st.slider("Lp Slider", 5.0, 40.0, step=0.01, key="lp_slider", on_change=sync_lp_from_slider)
+        with lp_c2:
+            st.number_input("Lp Type", min_value=5.0, max_value=40.0, step=0.01, format="%.2f", key="lp_input", on_change=sync_lp_from_input)
+
+        st.markdown("**Patch Width (Wp): slider + manual input (5.00-40.00 mm)**")
+        wp_c1, wp_c2 = st.columns([2, 1])
+        with wp_c1:
+            st.slider("Wp Slider", 5.0, 40.0, step=0.01, key="wp_slider", on_change=sync_wp_from_slider)
+        with wp_c2:
+            st.number_input("Wp Type", min_value=5.0, max_value=40.0, step=0.01, format="%.2f", key="wp_input", on_change=sync_wp_from_input)
+
         st.caption(
-            f'Nearest CSV anchor -> Lp={n["lp"]:.4f}, Wp={n["wp"]:.4f}, '
-            f'fr={n["fr"]:.3f} GHz, S11min={n["s11"]:.2f} dB, dist={n["dist"]:.4f} mm'
+            f"Sliders span 5–40 mm on purpose, but the model and the CST data were built from "
+            f"**{TRAINED_MIN_MM:g}–{TRAINED_MAX_MM:g} mm**. Outside that window the app says so "
+            f"and flags the result as extrapolation."
         )
 
-    _shape_name = next((k for k, v in SHAPES.items() if v == int(d["id"])), f"Shape {int(d['id'])}")
-
-    st.plotly_chart(
-        antenna_charts.s11_vswr_fig(
-            d["f"], d["c"], d.get("v"), fr=d["fr"], bw=d["bw"],
-            title=f"S11 &amp; VSWR &mdash; {_shape_name}",
-        ),
-        width="stretch", config={"displayModeBar": False},
-    )
-
-    _geo_col, _side_col = st.columns([1, 1.35])
-    with _geo_col:
-        _t2d, _t3d = st.tabs(["2D layout", "3D structure"])
-        with _t2d:
-            st.markdown('<div class="antenna-plot-wrap">', unsafe_allow_html=True)
-            st.pyplot(draw_antenna(d["id"], round(d["lp"], 2), round(d["wp"], 2)))
-            st.markdown("</div>", unsafe_allow_html=True)
-        with _t3d:
-            st.plotly_chart(
-                antenna_charts.patch_3d_fig(int(d["id"]), float(d["lp"]), float(d["wp"]), _shape_name),
-                width="stretch", config={"displayModeBar": False},
-            )
-            st.caption("CPW is a planar technology — ground, feed and patch share one "
-                       f"plane. Slab thickness shown as {antenna_charts.SUBSTRATE_H} mm FR-4.")
-
-    with _side_col:
-        st.markdown("<h4 class='panel-h'>Design Toolkit</h4>", unsafe_allow_html=True)
-
-        # --- comparison set ---
-        if "compare" not in st.session_state:
-            st.session_state.compare = []
-        _label = f"{_shape_name.split('. ')[-1]}  {d['lp']:.1f}x{d['wp']:.1f} mm"
-        _b1, _b2 = st.columns(2)
-        if _b1.button("Add to comparison", width="stretch"):
-            st.session_state.compare = (st.session_state.compare + [{
-                "label": _label, "f": list(d["f"]), "c": list(d["c"]),
-            }])[-6:]
-        if _b2.button("Clear", width="stretch",
-                      disabled=not st.session_state.compare):
-            st.session_state.compare = []
-
-        if len(st.session_state.compare) >= 2:
-            st.plotly_chart(
-                antenna_charts.compare_fig(st.session_state.compare),
-                width="stretch", config={"displayModeBar": False},
-            )
-        elif st.session_state.compare:
-            st.caption("Add a second design to overlay the curves.")
-
-        # --- export ---
-        _rpt = "\n".join([
-            "SPU Neural Antenna Synthesis - design report",
-            "=" * 46,
-            f"Shape          : {_shape_name} (id {int(d['id'])})",
-            f"Lp             : {d['lp']:.3f} mm",
-            f"Wp             : {d['wp']:.3f} mm",
-            f"Status         : {d['status']}",
-            f"Resonance fr   : {d['fr']:.4f} GHz",
-            f"Bandwidth      : {d['bw']:.4f} GHz",
-            f"S11 min        : {d['s11']:.3f} dB",
-            f"Gain           : {d['gain']:.3f} dBi",
-            f"Efficiency     : {d['eff'] * 100:.2f} %",
-            f"Engine         : {d['engine']}",
-        ])
-        if "near_row" in d:
-            _n = d["near_row"]
-            _rpt += (f"\nNearest CST anchor: Lp={_n['lp']:.4f} mm, Wp={_n['wp']:.4f} mm, "
-                     f"fr={_n['fr']:.4f} GHz, dist={_n['dist']:.4f} mm")
-        st.download_button(
-            "Download design report", _rpt.encode("utf-8"),
-            file_name=f"antenna_{int(d['id'])}_{d['lp']:.1f}x{d['wp']:.1f}.txt",
-            mime="text/plain", width="stretch",
+        shape_name = st.selectbox("Design Profile", list(SHAPES.keys()))
+        shape_id = SHAPES[shape_name]
+        # Two-Brain 2.0 is enabled automatically when available (hidden controls)
+        use_v2 = v2_fwd is not None
+        anchor_strength = 0.3  # gentle blend for best accuracy
+        anchor_window = 30
+        use_ml_refine = st.checkbox(
+            f"Use the trained neural model ({int((1 - ML_BLEND_WEIGHT) * 100)}/"
+            f"{int(ML_BLEND_WEIGHT * 100)} CST / model)",
+            value=True,
+            help=(
+                f"The trained Keras surrogate contributes {int(ML_BLEND_WEIGHT * 100)}% of the "
+                f"predicted curve when the design is more than {ML_BLEND_RADIUS_MM} mm from the "
+                "nearest CST simulation point. Turn this off to see pure CST interpolation, then "
+                "compare the two. Has no effect within the CST-exact radius, where the simulated "
+                "data is used verbatim."
+            ),
+        )
+        st.caption(
+            f"**On:** beyond {ML_BLEND_RADIUS_MM} mm from a CST point the answer is "
+            f"{int((1 - ML_BLEND_WEIGHT) * 100)}% CST interpolation + "
+            f"{int(ML_BLEND_WEIGHT * 100)}% neural model. "
+            f"**Within** {ML_BLEND_RADIUS_MM} mm the simulated curve is used as-is — it is ground "
+            "truth, so there is nothing for the model to improve. "
+            "Re-run **Initiate Simulation** after changing this. "
+            "Use **Engine Validation → Compare CST vs. model** to see which is actually more accurate."
         )
 
-    with st.expander("Explore the design space (resonance vs. Lp / Wp)"):
-        _ds = antenna_charts.design_space_fig(db, int(d["id"]), _shape_name)
-        if _ds is not None:
-            st.plotly_chart(_ds, width="stretch", config={"displayModeBar": False})
-            st.caption("Read directly from the CST dataset, so this costs no model calls. "
-                       "Use it to see which Lp/Wp region reaches your target frequency "
-                       "before running the inverse solver.")
-        else:
-            st.info("Not enough CST points for this shape to map the design space.")
-
-st.markdown("### Engine Validation")
-st.caption(
-    "**Leave-one-out** fidelity check. Each sampled CST point is *removed* from the lookup "
-    "table before the engine is asked to predict it, so the engine has to interpolate from "
-    "neighbouring geometries. That is the quantity that matters: how well it predicts a "
-    "design it has never seen. (The previous version sampled rows and then queried those "
-    "same rows, so the engine returned the ground truth and every error read 0.000.)"
-)
-col_t1, col_t2 = st.columns([1, 2])
-with col_t1:
-    _n_holdout = st.slider("Held-out samples", 40, 400, 220, step=20)
-    if st.button("Run Self-Test (CSV fidelity)", width="stretch"):
-        with st.spinner("Running leave-one-out benchmark..."):
-            try:
-                stats = run_engine_self_test(db, sample_size=int(_n_holdout))
-                st.session_state.self_test_stats = stats
-                st.session_state.self_test_ran = True
-                if stats is None:
-                    st.warning("Self-test completed but returned no metrics (check CSV frequency columns 1-7 GHz).")
+        if st.button("Initiate Simulation"):
+            with st.spinner("Running high-precision hybrid simulation..."):
+                lp = clamp_5_40(st.session_state.lp_val)
+                wp = clamp_5_40(st.session_state.wp_val)
+                if use_v2 and v2_fwd is not None:
+                    # Two-Brain 2.0: use v1 CSV anchoring as primary, v2 ML as fallback
+                    # This keeps CSV accuracy while using the improved v2 model when needed
+                    res = forward_physics_first_v2(lp, wp, shape_id, v2_fwd, v2_dip_specialist, s_geo, s_perf, db,
+                        use_ml_refine=use_ml_refine,
+                        blend_window_mhz=int(anchor_window),
+                        anchor_strength=float(anchor_strength))
                 else:
-                    st.success(f"Leave-one-out benchmark complete on {stats['n']} held-out geometries.")
-            except Exception as e:
-                st.session_state.self_test_stats = None
-                st.session_state.self_test_ran = True
-                st.error(f"Self-test failed: {e}")
-with col_t2:
-    if "self_test_stats" in st.session_state and st.session_state.self_test_stats is not None:
-        s = st.session_state.self_test_stats
-        a1, a2, a3, a4 = st.columns(4)
-        a1.metric("Held-out points", f"{s['n']}")
-        a2.metric("fr MAE", f"{s['fr_mae_mhz']:.1f} MHz")
-        a3.metric("S11 MAE", f"{s['s11_mae_db']:.2f} dB")
-        a4.metric("BW MAE", f"{s['bw_mae_mhz']:.1f} MHz")
-        b1, b2, b3 = st.columns(3)
-        b1.metric("fr R²", f"{s['fr']['r2']:.3f}" if s.get("fr") else "n/a")
-        b2.metric("S11 R²", f"{s['s11']['r2']:.3f}" if s.get("s11") else "n/a")
-        b3.metric(f"fr within ±{s['fr_tol_pct']:.0f}%", f"{s['fr_pass_pct']:.1f}%")
-        st.caption("Interpolation modes used: " + ", ".join(
-            f"`{k}` ×{v}" for k, v in s.get("anchor_modes", {}).items()))
-
-        _rows = []
-        for _k, _u, _lbl in [("fr", "MHz", "Resonant frequency"), ("s11", "dB", "S11 minimum"),
-                             ("bw", "MHz", "Bandwidth"), ("gain", "dBi", "Gain at fr"),
-                             ("eff", "%", "Radiation efficiency")]:
-            _m = s.get(_k)
-            if _m:
-                _rows.append({"Quantity": _lbl, "Unit": _u,
-                              "MAE": round(_m["mae"], 4), "P90": round(_m["p90"], 4),
-                              "Max": round(_m["max"], 4), "R²": round(_m["r2"], 4),
-                              "n": _m["n"]})
-        if _rows:
-            st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True)
-
-        _sc = s.get("scatter", {}).get("fr")
-        if _sc:
-            _pf = antenna_charts.error_scatter_fig(
-                _sc[0], _sc[1], xlabel="CST ground truth (GHz)", ylabel="Engine prediction (GHz)",
-                title="Resonant frequency — held-out parity", unit=" GHz")
-            if _pf is not None:
-                st.plotly_chart(_pf, width="stretch", config={"displayModeBar": False})
-                st.caption("Points on the dashed line are exact. Spread above/below it is the "
-                           "interpolation error on geometries the engine has never seen.")
-    elif st.session_state.get("self_test_ran", False):
-        st.info("No self-test metrics to display yet.")
-
-st.markdown("### CST interpolation vs. the trained model")
-st.caption(
-    "The app ships **two** predictors. The answers you see come from interpolating the CST "
-    "dataset; the trained Keras surrogate is loaded but only used as a fallback (or when you "
-    "tick *Use ML refinement*). Its training-time accuracy was measured on its own held-out "
-    "split, which is not the same as measuring it here. This scores both paths against the "
-    "**same** held-out geometries, so the choice of default is evidence-based rather than assumed."
-)
-_ab1, _ab2 = st.columns([1, 2])
-with _ab1:
-    if fwd is None:
-        st.info("No Keras model is loaded, so there is nothing to compare against.")
-    elif st.button("Compare CST vs. model", width="stretch"):
-        with st.spinner("Scoring both prediction paths on identical held-out geometries..."):
-            try:
-                st.session_state.ab_test = run_engine_ab_test(db, fwd, s_geo, s_perf, sample_size=150)
-                st.session_state.ab_ran = True
-            except Exception as e:
-                st.session_state.ab_test = None
-                st.session_state.ab_ran = True
-                st.error(f"Comparison failed: {e}")
-with _ab2:
-    _ab = st.session_state.get("ab_test")
-    if _ab:
-        _cmp = [("Resonant frequency", "MHz", "fr_mhz"), ("S11 minimum", "dB", "s11_db"),
-                ("Bandwidth", "MHz", "bw_mhz"), ("Gain at fr", "dBi", "gain_dbi")]
-        _rows, _csv_wins, _ml_wins = [], 0, 0
-        for _lbl, _u, _k in _cmp:
-            _c, _m = _ab["csv"].get(_k, float("nan")), _ab["model"].get(_k, float("nan"))
-            if not (np.isfinite(_c) and np.isfinite(_m)):
-                continue
-            if _c < _m:
-                _w, _csv_wins = "CST interpolation", _csv_wins + 1
-            elif _m < _c:
-                _w, _ml_wins = "Trained model", _ml_wins + 1
-            else:
-                _w = "tie"
-            _rows.append({"Quantity": _lbl, "Unit": _u,
-                          "CST interpolation": round(_c, 4), "Trained model": round(_m, 4),
-                          "Lower error": _w})
-        if _rows:
-            st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True)
-            st.caption(f"Scored on {_ab['n']} identical held-out geometries. "
-                       f"Lower MAE wins. **CST { _csv_wins } — model { _ml_wins }**.")
-            if _ml_wins > _csv_wins:
-                st.success("The trained model is more accurate on held-out geometries. "
-                           "Consider making it the default answer (Option A).")
-            elif _csv_wins > _ml_wins:
-                st.info("CST interpolation is more accurate on held-out geometries. "
-                        "Keeping it as the default is justified (Option C) — but the UI "
-                        "should say so plainly instead of implying the model produced it.")
-            else:
-                st.warning("Neither path is clearly better. Decide on other grounds — "
-                           "generalisation far from the dataset favours the model.")
-    elif st.session_state.get("ab_ran", False):
-        st.info("No comparison available.")
-
-st.markdown('<span id="designer" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="section-title">Inverse Design</div>', unsafe_allow_html=True)
-_, mid_i, _ = st.columns([1, 2.2, 1])
-with mid_i:
-    tfr = st.number_input("Target Frequency (GHz)", 1.0, 7.0, 3.5, step=0.01)
-    priority = st.selectbox("Optimization Priority", ["Balanced Profile", "Maximize Gain", "Maximize Bandwidth"])
-    family = st.selectbox("Shape Family", list(FAMILY_MAP.keys()))
-    if st.button("Synthesize Optimal Geometry"):
-        with st.spinner("Search-and-optimize in progress for best physical match..."):
-            best = run_inverse_solver(float(tfr), family, priority, fwd, s_geo, s_perf, db)
-            if best is None:
-                st.error("No valid candidate found.")
-            else:
-                err_pct = (float(best["err"]) / max(1e-8, float(tfr))) * 100.0
-                st.session_state.inv_res = {
-                    "lp": float(best["lp"]),
-                    "wp": float(best["wp"]),
-                    "id": int(best["shape_id"]),
-                    "fr": float(best["fr"]),
-                    "err_pct": float(err_pct),
-                    "gain": float(best["gain"]),
-                    "bw": float(best["bw"]),
-                    "status": str(best["status"]),
-                    "priority": priority,
-                }
-
-if "inv_res" in st.session_state:
-    r = st.session_state.inv_res
-    st.markdown(
-        '<div class="result-banner">Inverse search completed. Review dimensions and predicted performance in this section.</div>',
-        unsafe_allow_html=True,
-    )
-    st.markdown("<h3 class='status-heading'>Optimized Geometry</h3>", unsafe_allow_html=True)
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Optimal Lp", f"{r['lp']:.3f} mm")
-    c2.metric("Optimal Wp", f"{r['wp']:.3f} mm")
-    c3.metric("Design Accuracy", f"{100 - r['err_pct']:.2f} %", delta=f"{r['fr']:.3f} GHz")
-    c4, c5, c6 = st.columns(3)
-    c4.metric("Priority", r["priority"])
-    c5.metric("Pred Gain", f"{r['gain']:.2f} dBi")
-    c6.metric("Pred BW", f"{r['bw']:.3f} GHz")
-    st.caption(f'Status: {r["status"]}')
-    _, _inv_ant_col, _ = st.columns([1.4, 1, 1.4])
-    with _inv_ant_col:
-        st.markdown('<div class="antenna-plot-wrap">', unsafe_allow_html=True)
-        st.pyplot(draw_antenna(r["id"], round(r["lp"], 2), round(r["wp"], 2)))
-        st.markdown("</div>", unsafe_allow_html=True)
-
-st.markdown("### Inverse Validation")
-i1, i2 = st.columns([1, 2])
-with i1:
-    inv_test_mode = st.selectbox("Inverse Test Mode", ["Quick", "Full"], index=0)
-    inv_per_family = st.slider("Samples per family", min_value=2, max_value=8, value=3 if inv_test_mode == "Quick" else 5, step=1)
-    if st.button("Run Inverse Self-Test"):
-        fast_mode = inv_test_mode == "Quick"
-        spinner_msg = "Benchmarking inverse solver (quick mode, ~10-30s)..." if fast_mode else "Benchmarking inverse solver (full mode, may take longer)..."
-        with st.spinner(spinner_msg):
-            try:
-                t0 = time.perf_counter()
-                s, fam_df = run_inverse_self_test(db, fwd, s_geo, s_perf, per_family=inv_per_family, fast_mode=fast_mode)
-                elapsed = time.perf_counter() - t0
-                st.session_state.inv_test_summary = s
-                st.session_state.inv_test_family = fam_df
-                st.session_state.inv_test_runtime_s = float(elapsed)
-                st.session_state.inv_test_ran = True
-                if s is None:
-                    st.warning("Inverse self-test completed but no metrics were produced.")
+                    res = forward_physics_first(lp, wp, shape_id, fwd, s_geo, s_perf, db, use_ml_refine=use_ml_refine)
+                near = nearest_csv_row(db, lp, wp, shape_id)
+                st.session_state.fwd_res = {**res, "lp": lp, "wp": wp, "id": shape_id, "use_ml_refine": use_ml_refine, "use_v2": use_v2}
+                if near is not None:
+                    st.session_state.fwd_res["near_row"] = {
+                        "lp": float(near["Lp"]),
+                        "wp": float(near["Wp"]),
+                        "fr": float(near["fr (GHz)"]) if "fr (GHz)" in near.index else np.nan,
+                        "s11": float(near["S11_min"]) if "S11_min" in near.index else np.nan,
+                        "dist": float(near["dist"]),
+                    }
+    with right:
+        if "fwd_res" in st.session_state:
+            d = st.session_state.fwd_res
+            st.markdown(f"<h3 class='status-heading'>Status: {d['status']}</h3>", unsafe_allow_html=True)
+            if out_of_training_range(d.get("lp"), d.get("wp")):
+                st.warning(
+                    f"**Outside the trained range.** The model and the CST dataset were built from "
+                    f"antennas **{TRAINED_MIN_MM:g}–{TRAINED_MAX_MM:g} mm**. At Lp = "
+                    f"{float(d.get('lp', float('nan'))):.2f} mm / Wp = {float(d.get('wp', float('nan'))):.2f} mm "
+                    "the app is **extrapolating** — neither the neural network nor the interpolation has "
+                    "any real data here, so treat these numbers as a trend, not a prediction. "
+                    "Neural networks are especially unreliable outside their training range."
+                )
+            st.caption(f"Engine mode: {d['engine']}")
+            _ml_requested = bool(d.get("use_ml_refine", False))
+            _ml_blended = "Hybrid" in str(d.get("engine", "")) or "refine" in str(d.get("engine", ""))
+            if _ml_requested:
+                if _ml_blended:
+                    st.success("Neural refinement: **active** — CSV anchor blended with the ML surrogate.")
+                elif "near_row" in d and float(d["near_row"].get("dist", 999)) <= 0.60:
+                    st.info(
+                        "Neural refinement: **not applied** — geometry is within **0.6 mm** of a CST reference point "
+                        f"(distance {float(d['near_row']['dist']):.3f} mm). Result uses CST data only."
+                    )
                 else:
-                    st.success("Inverse self-test completed successfully.")
-            except Exception as e:
-                st.session_state.inv_test_summary = None
-                st.session_state.inv_test_family = None
-                st.session_state.inv_test_ran = True
-                st.error(f"Inverse self-test failed: {e}")
-with i2:
-    if "inv_test_summary" in st.session_state and st.session_state.inv_test_summary:
-        s = st.session_state.inv_test_summary
-        m1, m2, m3, m4 = st.columns(4)
-        m1.metric("Tests", f"{s['tests']}")
-        m2.metric("Mean fr error", f"{s['mean_err_mhz']:.1f} MHz")
-        m3.metric("P90 fr error", f"{s['p90_err_mhz']:.1f} MHz")
-        m4.metric("Max fr error", f"{s['max_err_mhz']:.1f} MHz")
-        if "inv_test_runtime_s" in st.session_state:
-            st.caption(f'Runtime: {st.session_state["inv_test_runtime_s"]:.2f} s')
-        if "inv_test_family" in st.session_state and st.session_state.inv_test_family is not None:
-            st.dataframe(st.session_state.inv_test_family, width="stretch")
+                    st.info(
+                        "Neural refinement: **not applied** for this run — see engine mode above. "
+                        "Try different Lp/Wp values farther from dataset points to engage the ML layer."
+                    )
+            else:
+                st.caption("Neural refinement: **off** — CST physics / anchor path only.")
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Resonance", f"{d['fr']:.3f} GHz")
+            m2.metric("Bandwidth", f"{d['bw']:.3f} GHz")
+            m3.metric("S11 Min", f"{d['s11']:.2f} dB")
+            m4.metric("VSWR @ Min", f"{d['v'][int(np.argmin(d['c']))]:.3f}")
+            m5, m6 = st.columns(2)
+            m5.metric("Gain", f"{d['gain']:.2f} dBi")
+            m6.metric("Efficiency", f"{d['eff']*100:.2f} %")
+            if "near_row" in d:
+                n = d["near_row"]
+                st.caption(
+                    f'Nearest CSV anchor -> Lp={n["lp"]:.4f}, Wp={n["wp"]:.4f}, '
+                    f'fr={n["fr"]:.3f} GHz, S11min={n["s11"]:.2f} dB, dist={n["dist"]:.4f} mm'
+                )
+
+            _shape_name = next((k for k, v in SHAPES.items() if v == int(d["id"])), f"Shape {int(d['id'])}")
+            _geo_col, _chart_col = st.columns([1, 1.35])
+            with _geo_col:
+                _t2d, _t3d = st.tabs(["2D layout", "3D structure"])
+                with _t2d:
+                    components.html(antenna_animated_html(d["id"], round(d["lp"], 2), round(d["wp"], 2), _shape_name), height=620)
+                with _t3d:
+                    st.plotly_chart(
+                        antenna_charts.patch_3d_fig(int(d["id"]), float(d["lp"]), float(d["wp"]), _shape_name),
+                        width="stretch", config={"displayModeBar": False},
+                    )
+                    st.caption("CPW is a planar technology — ground, feed and patch share one "
+                               f"plane. Slab thickness shown as {antenna_charts.SUBSTRATE_H} mm FR-4.")
+            with _chart_col:
+                components.html(s11_vswr_animated_html(d["f"], d["c"], d.get("v"), fr=d["fr"], bw=d["bw"]), height=600)
+
+            st.markdown("<h4 class='panel-h'>Design Toolkit</h4>", unsafe_allow_html=True)
+
+            # --- comparison set ---
+            if "compare" not in st.session_state:
+                st.session_state.compare = []
+            _label = f"{_shape_name.split('. ')[-1]}  {d['lp']:.1f}x{d['wp']:.1f} mm"
+            _b1, _b2 = st.columns(2)
+            if _b1.button("Add to comparison", width="stretch"):
+                st.session_state.compare = (st.session_state.compare + [{
+                    "label": _label, "f": list(d["f"]), "c": list(d["c"]),
+                }])[-6:]
+            if _b2.button("Clear", width="stretch",
+                          disabled=not st.session_state.compare):
+                st.session_state.compare = []
+
+            if len(st.session_state.compare) >= 2:
+                st.plotly_chart(
+                    antenna_charts.compare_fig(st.session_state.compare),
+                    width="stretch", config={"displayModeBar": False},
+                )
+            elif st.session_state.compare:
+                st.caption("Add a second design to overlay the curves.")
+
+            # --- export ---
+            _rpt = "\n".join([
+                "SPU Neural Antenna Synthesis - design report",
+                "=" * 46,
+                f"Shape          : {_shape_name} (id {int(d['id'])})",
+                f"Lp             : {d['lp']:.3f} mm",
+                f"Wp             : {d['wp']:.3f} mm",
+                f"Status         : {d['status']}",
+                f"Resonance fr   : {d['fr']:.4f} GHz",
+                f"Bandwidth      : {d['bw']:.4f} GHz",
+                f"S11 min        : {d['s11']:.3f} dB",
+                f"Gain           : {d['gain']:.3f} dBi",
+                f"Efficiency     : {d['eff'] * 100:.2f} %",
+                f"Engine         : {d['engine']}",
+            ])
+            if "near_row" in d:
+                _n = d["near_row"]
+                _rpt += (f"\nNearest CST anchor: Lp={_n['lp']:.4f} mm, Wp={_n['wp']:.4f} mm, "
+                         f"fr={_n['fr']:.4f} GHz, dist={_n['dist']:.4f} mm")
             st.download_button(
-                "Download Inverse Test Table (CSV)",
-                st.session_state.inv_test_family.to_csv(index=False).encode("utf-8"),
-                file_name="inverse_self_test_results.csv",
-                mime="text/csv",
+                "Download design report", _rpt.encode("utf-8"),
+                file_name=f"antenna_{int(d['id'])}_{d['lp']:.1f}x{d['wp']:.1f}.txt",
+                mime="text/plain", width="stretch",
             )
-    elif st.session_state.get("inv_test_ran", False):
-        st.info("No inverse self-test metrics to display yet.")
 
-st.markdown('<span id="assistant" class="section-anchor"></span>', unsafe_allow_html=True)
-st.markdown('<div class="section-title">AETHER Assistant</div>', unsafe_allow_html=True)
-_, chat_col, _ = st.columns([1, 3, 1])
-with chat_col:
-    groq_key = os.getenv("GROQ_API_KEY", "").strip()
-    if not groq_key:
-        try:
-            groq_key = st.secrets.get("GROQ_API_KEY", "").strip()
-        except Exception:
-            pass
-    if not groq_key:
-        st.info("Set GROQ_API_KEY in `.streamlit/secrets.toml` or your environment to enable AETHER Assistant.")
-    else:
-        client = Groq(api_key=groq_key)
-        if "messages" not in st.session_state:
-            st.session_state.messages = []
-        for message in st.session_state.messages:
-            with st.chat_message(message["role"]):
-                st.markdown(message["content"])
-        if prompt := st.chat_input("Ask AETHER about antenna design, parameters, or results..."):
-            st.session_state.messages.append({"role": "user", "content": prompt})
-            with st.chat_message("user"):
-                st.markdown(prompt)
-            response = None
-            last_err = None
-            # AETHER model fallback list — ordered by preference.
-            # Groq occasionally deprecates model IDs; we try several so the
-            # assistant keeps working without a code deploy.
-            AETHER_MODELS = [
-                "openai/gpt-oss-20b",          # Groq recommended replacement for llama-3.1-8b
-                "qwen/qwen3.6-27b",             # fallbacks if primary is busy/down
-                "openai/gpt-oss-120b",
-                "llama-3.3-70b-versatile",      # older names (might still work for some tiers)
-                "llama-3.1-8b-instant",
-                "llama3-70b-8192",
-                "llama3-8b-8192",
-                "mixtral-8x7b-32768",
-            ]
-            # Try whichever model answered last, first. Walking an 8-entry list that
-            # contains retired IDs costs one failed network round-trip per dead entry
-            # on EVERY message before a live one is found.
-            _preferred = st.session_state.get("aether_model")
-            _ordered = ([_preferred] if _preferred else []) + [m for m in AETHER_MODELS if m != _preferred]
+            with st.expander("Explore the design space (resonance vs. Lp / Wp)"):
+                _ds = antenna_charts.design_space_fig(db, int(d["id"]), _shape_name)
+                if _ds is not None:
+                    st.plotly_chart(_ds, width="stretch", config={"displayModeBar": False})
+                    st.caption("Read directly from the CST dataset, so this costs no model calls. "
+                               "Use it to see which Lp/Wp region reaches your target frequency "
+                               "before running the inverse solver.")
+                else:
+                    st.info("Not enough CST points for this shape to map the design space.")
+
+with tabs[2]:
+    st.markdown(adtheme.section_title("Inverse design", "Find dimensions for a target frequency"), unsafe_allow_html=True)
+    left_i, right_i = st.columns([1, 2.6])
+    with left_i:
+        tfr = st.number_input("Target Frequency (GHz)", 1.0, 7.0, 3.5, step=0.01)
+        priority = st.selectbox("Optimization Priority", ["Balanced Profile", "Maximize Gain", "Maximize Bandwidth"])
+        family = st.selectbox("Shape Family", list(FAMILY_MAP.keys()))
+        if st.button("Synthesize Optimal Geometry"):
+            with st.spinner("Search-and-optimize in progress for best physical match..."):
+                best = run_inverse_solver(float(tfr), family, priority, fwd, s_geo, s_perf, db)
+                if best is None:
+                    st.error("No valid candidate found.")
+                else:
+                    err_pct = (float(best["err"]) / max(1e-8, float(tfr))) * 100.0
+                    st.session_state.inv_res = {
+                        "lp": float(best["lp"]),
+                        "wp": float(best["wp"]),
+                        "id": int(best["shape_id"]),
+                        "fr": float(best["fr"]),
+                        "err_pct": float(err_pct),
+                        "gain": float(best["gain"]),
+                        "bw": float(best["bw"]),
+                        "status": str(best["status"]),
+                        "priority": priority,
+                    }
+    with right_i:
+        if "inv_res" in st.session_state:
+            r = st.session_state.inv_res
+            st.markdown(
+                '<div class="result-banner">Inverse search completed. Review dimensions and predicted performance in this section.</div>',
+                unsafe_allow_html=True,
+            )
+            st.markdown("<h3 class='status-heading'>Optimized Geometry</h3>", unsafe_allow_html=True)
+            c1, c2, c3 = st.columns(3)
+            c1.metric("Optimal Lp", f"{r['lp']:.3f} mm")
+            c2.metric("Optimal Wp", f"{r['wp']:.3f} mm")
+            c3.metric("Design Accuracy", f"{100 - r['err_pct']:.2f} %", delta=f"{r['fr']:.3f} GHz")
+            c4, c5, c6 = st.columns(3)
+            c4.metric("Priority", r["priority"])
+            c5.metric("Pred Gain", f"{r['gain']:.2f} dBi")
+            c6.metric("Pred BW", f"{r['bw']:.3f} GHz")
+            st.caption(f'Status: {r["status"]}')
+            _inv_shape_name = next((k for k, v in SHAPES.items() if v == int(r["id"])), f"Shape {int(r['id'])}")
+            components.html(antenna_animated_html(r["id"], round(r["lp"], 2), round(r["wp"], 2), _inv_shape_name), height=620)
+
+with tabs[3]:
+    st.markdown(adtheme.section_title("AETHER Assistant"), unsafe_allow_html=True)
+    _, chat_col, _ = st.columns([1, 3, 1])
+    with chat_col:
+        groq_key = os.getenv("GROQ_API_KEY", "").strip()
+        if not groq_key:
             try:
-                for model_id in _ordered:
-                    try:
-                        completion = client.chat.completions.create(
-                            model=model_id,
-                            messages=st.session_state.messages,
-                        )
-                        response = completion.choices[0].message.content
-                        if response:
-                            st.session_state["aether_model"] = model_id
-                            break
-                    except Exception as model_err:
-                        last_err = model_err
-                        continue
-            except GroqAuthError:
-                st.session_state.messages.pop()
-                st.error(
-                    "Invalid Groq API key. In Streamlit/fly.io secrets set `GROQ_API_KEY` "
-                    "to a valid key from [console.groq.com](https://console.groq.com/keys). "
-                    "Use only the key (starts with `gsk_`), no quotes, then re-deploy."
-                )
+                groq_key = st.secrets.get("GROQ_API_KEY", "").strip()
+            except Exception:
+                pass
+        if not groq_key:
+            st.info("Set GROQ_API_KEY in `.streamlit/secrets.toml` or your environment to enable AETHER Assistant.")
+        else:
+            client = Groq(api_key=groq_key)
+            if "messages" not in st.session_state:
+                st.session_state.messages = []
+            for message in st.session_state.messages:
+                with st.chat_message(message["role"]):
+                    st.markdown(message["content"])
+            if prompt := st.chat_input("Ask AETHER about antenna design, parameters, or results..."):
+                st.session_state.messages.append({"role": "user", "content": prompt})
+                with st.chat_message("user"):
+                    st.markdown(prompt)
                 response = None
-            except Exception as e:
-                st.session_state.messages.pop()
-                st.error(f"AETHER request failed: {e}")
-                response = None
-            if response is None and last_err is not None:
-                st.session_state.messages.pop()
-                st.error(
-                    "AETHER is temporarily unavailable (all Groq models were rejected — "
-                    f"last error: {last_err}). Try again later or check your API key."
+                last_err = None
+                # AETHER model fallback list — ordered by preference.
+                # Groq occasionally deprecates model IDs; we try several so the
+                # assistant keeps working without a code deploy.
+                AETHER_MODELS = [
+                    "openai/gpt-oss-20b",          # Groq recommended replacement for llama-3.1-8b
+                    "qwen/qwen3.6-27b",             # fallbacks if primary is busy/down
+                    "openai/gpt-oss-120b",
+                    "llama-3.3-70b-versatile",      # older names (might still work for some tiers)
+                    "llama-3.1-8b-instant",
+                    "llama3-70b-8192",
+                    "llama3-8b-8192",
+                    "mixtral-8x7b-32768",
+                ]
+                # Try whichever model answered last, first. Walking an 8-entry list that
+                # contains retired IDs costs one failed network round-trip per dead entry
+                # on EVERY message before a live one is found.
+                _preferred = st.session_state.get("aether_model")
+                _ordered = ([_preferred] if _preferred else []) + [m for m in AETHER_MODELS if m != _preferred]
+                try:
+                    for model_id in _ordered:
+                        try:
+                            completion = client.chat.completions.create(
+                                model=model_id,
+                                messages=st.session_state.messages,
+                            )
+                            response = completion.choices[0].message.content
+                            if response:
+                                st.session_state["aether_model"] = model_id
+                                break
+                        except Exception as model_err:
+                            last_err = model_err
+                            continue
+                except GroqAuthError:
+                    st.session_state.messages.pop()
+                    st.error(
+                        "Invalid Groq API key. In Streamlit/fly.io secrets set `GROQ_API_KEY` "
+                        "to a valid key from [console.groq.com](https://console.groq.com/keys). "
+                        "Use only the key (starts with `gsk_`), no quotes, then re-deploy."
+                    )
+                    response = None
+                except Exception as e:
+                    st.session_state.messages.pop()
+                    st.error(f"AETHER request failed: {e}")
+                    response = None
+                if response is None and last_err is not None:
+                    st.session_state.messages.pop()
+                    st.error(
+                        "AETHER is temporarily unavailable (all Groq models were rejected — "
+                        f"last error: {last_err}). Try again later or check your API key."
+                    )
+                if response:
+                    with st.chat_message("assistant"):
+                        st.markdown(response)
+                    st.session_state.messages.append({"role": "assistant", "content": response})
+
+with tabs[4]:
+    st.markdown(adtheme.section_title("Method & validation", "How the engine works and how it is tested."), unsafe_allow_html=True)
+    st.markdown("#### Active engine components")
+    _e1, _e2, _e3, _e4 = st.columns(4)
+    _e1.metric("CST dataset", f"{len(db):,} rows")
+    _e2.metric("Keras surrogate", "loaded" if fwd is not None else "missing")
+    _e3.metric("Dip specialist", "loaded" if v2_dip_specialist is not None else "missing")
+    _e4.metric("Blending", "aligned" if RESONANCE_ALIGN else "plain average")
+    if v2_dip_specialist is None:
+        st.caption(
+            "The dip specialist (`s11_dip_specialist.pkl`) is not present in the model repo, so the "
+            "engine runs the **main brain only**. Predictions are produced by interpolating the CST "
+            "dataset; the surrogate is used only as a fallback or when *Use ML refinement* is enabled. "
+            "Labels in this app now report that accurately."
+        )
+
+    st.markdown("### Engine Validation")
+    st.caption(
+        "**Leave-one-out** fidelity check. Each sampled CST point is *removed* from the lookup "
+        "table before the engine is asked to predict it, so the engine has to interpolate from "
+        "neighbouring geometries. That is the quantity that matters: how well it predicts a "
+        "design it has never seen. (The previous version sampled rows and then queried those "
+        "same rows, so the engine returned the ground truth and every error read 0.000.)"
+    )
+    col_t1, col_t2 = st.columns([1, 2])
+    with col_t1:
+        _n_holdout = st.slider("Held-out samples", 40, 400, 220, step=20)
+        if st.button("Run Self-Test (CSV fidelity)", width="stretch"):
+            with st.spinner("Running leave-one-out benchmark..."):
+                try:
+                    stats = run_engine_self_test(db, sample_size=int(_n_holdout))
+                    st.session_state.self_test_stats = stats
+                    st.session_state.self_test_ran = True
+                    if stats is None:
+                        st.warning("Self-test completed but returned no metrics (check CSV frequency columns 1-7 GHz).")
+                    else:
+                        st.success(f"Leave-one-out benchmark complete on {stats['n']} held-out geometries.")
+                except Exception as e:
+                    st.session_state.self_test_stats = None
+                    st.session_state.self_test_ran = True
+                    st.error(f"Self-test failed: {e}")
+    with col_t2:
+        if "self_test_stats" in st.session_state and st.session_state.self_test_stats is not None:
+            s = st.session_state.self_test_stats
+            a1, a2, a3, a4 = st.columns(4)
+            a1.metric("Held-out points", f"{s['n']}")
+            a2.metric("fr MAE", f"{s['fr_mae_mhz']:.1f} MHz")
+            a3.metric("S11 MAE", f"{s['s11_mae_db']:.2f} dB")
+            a4.metric("BW MAE", f"{s['bw_mae_mhz']:.1f} MHz")
+            b1, b2, b3 = st.columns(3)
+            b1.metric("fr R²", f"{s['fr']['r2']:.3f}" if s.get("fr") else "n/a")
+            b2.metric("S11 R²", f"{s['s11']['r2']:.3f}" if s.get("s11") else "n/a")
+            b3.metric(f"fr within ±{s['fr_tol_pct']:.0f}%", f"{s['fr_pass_pct']:.1f}%")
+            st.caption("Interpolation modes used: " + ", ".join(
+                f"`{k}` ×{v}" for k, v in s.get("anchor_modes", {}).items()))
+
+            _rows = []
+            for _k, _u, _lbl in [("fr", "MHz", "Resonant frequency"), ("s11", "dB", "S11 minimum"),
+                                 ("bw", "MHz", "Bandwidth"), ("gain", "dBi", "Gain at fr"),
+                                 ("eff", "%", "Radiation efficiency")]:
+                _m = s.get(_k)
+                if _m:
+                    _rows.append({"Quantity": _lbl, "Unit": _u,
+                                  "MAE": round(_m["mae"], 4), "P90": round(_m["p90"], 4),
+                                  "Max": round(_m["max"], 4), "R²": round(_m["r2"], 4),
+                                  "n": _m["n"]})
+            if _rows:
+                st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True)
+
+            _sc = s.get("scatter", {}).get("fr")
+            if _sc:
+                _pf = antenna_charts.error_scatter_fig(
+                    _sc[0], _sc[1], xlabel="CST ground truth (GHz)", ylabel="Engine prediction (GHz)",
+                    title="Resonant frequency — held-out parity", unit=" GHz")
+                if _pf is not None:
+                    st.plotly_chart(_pf, width="stretch", config={"displayModeBar": False})
+                    st.caption("Points on the dashed line are exact. Spread above/below it is the "
+                               "interpolation error on geometries the engine has never seen.")
+        elif st.session_state.get("self_test_ran", False):
+            st.info("No self-test metrics to display yet.")
+
+    st.markdown("### CST interpolation vs. the trained model")
+    st.caption(
+        "The app ships **two** predictors. The answers you see come from interpolating the CST "
+        "dataset; the trained Keras surrogate is loaded but only used as a fallback (or when you "
+        "tick *Use ML refinement*). Its training-time accuracy was measured on its own held-out "
+        "split, which is not the same as measuring it here. This scores both paths against the "
+        "**same** held-out geometries, so the choice of default is evidence-based rather than assumed."
+    )
+    _ab1, _ab2 = st.columns([1, 2])
+    with _ab1:
+        if fwd is None:
+            st.info("No Keras model is loaded, so there is nothing to compare against.")
+        elif st.button("Compare CST vs. model", width="stretch"):
+            with st.spinner("Scoring both prediction paths on identical held-out geometries..."):
+                try:
+                    st.session_state.ab_test = run_engine_ab_test(db, fwd, s_geo, s_perf, sample_size=150)
+                    st.session_state.ab_ran = True
+                except Exception as e:
+                    st.session_state.ab_test = None
+                    st.session_state.ab_ran = True
+                    st.error(f"Comparison failed: {e}")
+    with _ab2:
+        _ab = st.session_state.get("ab_test")
+        if _ab:
+            _cmp = [("Resonant frequency", "MHz", "fr_mhz"), ("S11 minimum", "dB", "s11_db"),
+                    ("Bandwidth", "MHz", "bw_mhz"), ("Gain at fr", "dBi", "gain_dbi")]
+            _rows, _csv_wins, _ml_wins = [], 0, 0
+            for _lbl, _u, _k in _cmp:
+                _c, _m = _ab["csv"].get(_k, float("nan")), _ab["model"].get(_k, float("nan"))
+                if not (np.isfinite(_c) and np.isfinite(_m)):
+                    continue
+                if _c < _m:
+                    _w, _csv_wins = "CST interpolation", _csv_wins + 1
+                elif _m < _c:
+                    _w, _ml_wins = "Trained model", _ml_wins + 1
+                else:
+                    _w = "tie"
+                _rows.append({"Quantity": _lbl, "Unit": _u,
+                              "CST interpolation": round(_c, 4), "Trained model": round(_m, 4),
+                              "Lower error": _w})
+            if _rows:
+                st.dataframe(pd.DataFrame(_rows), width="stretch", hide_index=True)
+                st.caption(f"Scored on {_ab['n']} identical held-out geometries. "
+                           f"Lower MAE wins. **CST { _csv_wins } — model { _ml_wins }**.")
+                if _ml_wins > _csv_wins:
+                    st.success("The trained model is more accurate on held-out geometries. "
+                               "Consider making it the default answer (Option A).")
+                elif _csv_wins > _ml_wins:
+                    st.info("CST interpolation is more accurate on held-out geometries. "
+                            "Keeping it as the default is justified (Option C) — but the UI "
+                            "should say so plainly instead of implying the model produced it.")
+                else:
+                    st.warning("Neither path is clearly better. Decide on other grounds — "
+                               "generalisation far from the dataset favours the model.")
+        elif st.session_state.get("ab_ran", False):
+            st.info("No comparison available.")
+
+    st.markdown("### Inverse Validation")
+    i1, i2 = st.columns([1, 2])
+    with i1:
+        inv_test_mode = st.selectbox("Inverse Test Mode", ["Quick", "Full"], index=0)
+        inv_per_family = st.slider("Samples per family", min_value=2, max_value=8, value=3 if inv_test_mode == "Quick" else 5, step=1)
+        if st.button("Run Inverse Self-Test"):
+            fast_mode = inv_test_mode == "Quick"
+            spinner_msg = "Benchmarking inverse solver (quick mode, ~10-30s)..." if fast_mode else "Benchmarking inverse solver (full mode, may take longer)..."
+            with st.spinner(spinner_msg):
+                try:
+                    t0 = time.perf_counter()
+                    s, fam_df = run_inverse_self_test(db, fwd, s_geo, s_perf, per_family=inv_per_family, fast_mode=fast_mode)
+                    elapsed = time.perf_counter() - t0
+                    st.session_state.inv_test_summary = s
+                    st.session_state.inv_test_family = fam_df
+                    st.session_state.inv_test_runtime_s = float(elapsed)
+                    st.session_state.inv_test_ran = True
+                    if s is None:
+                        st.warning("Inverse self-test completed but no metrics were produced.")
+                    else:
+                        st.success("Inverse self-test completed successfully.")
+                except Exception as e:
+                    st.session_state.inv_test_summary = None
+                    st.session_state.inv_test_family = None
+                    st.session_state.inv_test_ran = True
+                    st.error(f"Inverse self-test failed: {e}")
+    with i2:
+        if "inv_test_summary" in st.session_state and st.session_state.inv_test_summary:
+            s = st.session_state.inv_test_summary
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric("Tests", f"{s['tests']}")
+            m2.metric("Mean fr error", f"{s['mean_err_mhz']:.1f} MHz")
+            m3.metric("P90 fr error", f"{s['p90_err_mhz']:.1f} MHz")
+            m4.metric("Max fr error", f"{s['max_err_mhz']:.1f} MHz")
+            if "inv_test_runtime_s" in st.session_state:
+                st.caption(f'Runtime: {st.session_state["inv_test_runtime_s"]:.2f} s')
+            if "inv_test_family" in st.session_state and st.session_state.inv_test_family is not None:
+                st.dataframe(st.session_state.inv_test_family, width="stretch")
+                st.download_button(
+                    "Download Inverse Test Table (CSV)",
+                    st.session_state.inv_test_family.to_csv(index=False).encode("utf-8"),
+                    file_name="inverse_self_test_results.csv",
+                    mime="text/csv",
                 )
-            if response:
-                with st.chat_message("assistant"):
-                    st.markdown(response)
-                st.session_state.messages.append({"role": "assistant", "content": response})
+        elif st.session_state.get("inv_test_ran", False):
+            st.info("No inverse self-test metrics to display yet.")
 
-st.markdown(
-    """
-<div class="footer-text">
-Technical College of Engineering &mdash; Communication Department<br>
-Sulaymaniyah Polytechnic University (SPU)<br>
-<small>Graduation project &middot; Academic year 2025&ndash;2026 &middot; AI-Based CPW Antenna Synthesis</small><br>
-<small style="opacity:0.75;">Submitted for academic evaluation. All engineering data derived from CST simulation datasets.</small>
-</div>
-""",
-    unsafe_allow_html=True,
-)
-
-components.html(
-    """<script>
-(function () {
-  var W = window.top || window.parent || window;
-  function doc() {
-    try { return W.document; } catch (e) { return document; }
-  }
-  function revealNear(anchor) {
-    var node = anchor;
-    for (var i = 0; i < 20 && node; i++) {
-      node = node.nextElementSibling;
-      if (!node) break;
-      if (node.classList && (
-        node.classList.contains("hero-container") ||
-          node.classList.contains("hero-content") ||
-          node.classList.contains("intro-panel") ||
-          node.classList.contains("section-title")
-      )) {
-        node.classList.add("section-reveal");
-        setTimeout(function (n) {
-          return function () { n.classList.remove("section-reveal"); };
-        }(node), 900);
-        return;
-      }
-    }
-  }
-  function scrollToId(sectionId, clickedLink) {
-    var d = doc();
-    var target = d.getElementById(sectionId);
-    if (!target) return false;
-    target.scrollIntoView({ behavior: "smooth", block: "start" });
-    var navItems = d.querySelectorAll(".nav-item");
-    navItems.forEach(function (l) { l.classList.remove("active"); });
-    if (clickedLink && clickedLink.classList.contains("nav-item")) {
-      clickedLink.classList.add("active");
-      clickedLink.classList.add("is-scrolling");
-      setTimeout(function () { clickedLink.classList.remove("is-scrolling"); }, 600);
-    }
-    revealNear(target);
-    return true;
-  }
-  function bindNav() {
-    var d = doc();
-    if (!d.querySelector(".nav-item")) return false;
-    if (W.__spuNavClickBound) return true;
-    W.__spuNavClickBound = true;
-    d.addEventListener("click", function (e) {
-      var link = e.target.closest(".nav-item, .nav-home-link");
-      if (!link) return;
-      var href = link.getAttribute("href");
-      if (!href || href.charAt(0) !== "#") return;
-      e.preventDefault();
-      scrollToId(href.slice(1), link);
-    }, true);
-    var ids = ["overview", "introduction", "intel", "simulator", "designer", "assistant"];
-    var sections = ids.map(function (id) { return d.getElementById(id); }).filter(Boolean);
-    function onScroll() {
-      var current = 0;
-      sections.forEach(function (sec, i) {
-        if (sec.getBoundingClientRect().top <= 130) current = i;
-      });
-      d.querySelectorAll(".nav-item").forEach(function (l, i) {
-        l.classList.toggle("active", i === current);
-      });
-    }
-    W.addEventListener("scroll", onScroll, { passive: true });
-    d.addEventListener("scroll", onScroll, { passive: true });
-    onScroll();
-    return true;
-  }
-  var tries = 0;
-  var timer = setInterval(function () {
-    tries += 1;
-    if (bindNav() || tries > 40) clearInterval(timer);
-  }, 350);
-})();
-</script>""",
-    height=0,
-)
+st.markdown(adtheme.render_footer(), unsafe_allow_html=True)
