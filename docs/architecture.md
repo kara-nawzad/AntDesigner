@@ -42,5 +42,3 @@ flowchart LR
 - `web/` is mounted at `/static`; root `assets/` is mounted at `/assets`. These URLs are same-origin with the API.
 - The Docker image downloads the model and CST CSV during build. The scaler paths are checked at build time and must contain genuine local scaler bytes for a usable engine; committed Git LFS pointer text is not pickle data.
 - Fly.io uses internal port 8080 and the `/health` HTTP check defined in `fly.toml`.
-
-The `docs/archive/` subtree contains retained design/handoff material and is not part of the production runtime.

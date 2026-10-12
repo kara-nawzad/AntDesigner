@@ -11,7 +11,7 @@ __pycache__/
 Thumbs.db
 
 # Documentation, tests, and the Streamlit rollback UI are not part of the API image.
-docs/archive
+docs/
 tests
 10_web_app.py
 antdesigner_theme.py
