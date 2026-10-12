@@ -1,157 +1,98 @@
-# SPU Neural Antenna Synthesis
+# AntDesigner — AI-Based CPW Antenna Synthesis
 
-AI-based synthesis of coplanar-waveguide (CPW) fed microstrip patch antennas, 1.0–7.0 GHz,
-across 12 patch geometries in 4 families. Graduation research project — Technical College
-of Engineering, Communication Department, Sulaymaniyah Polytechnic University.
+[![Live Demo](https://img.shields.io/badge/Live-Demo-2ea44f)](https://antenna-ai-project.fly.dev/)
+[![Dockerfile](https://img.shields.io/badge/Dockerfile-available-2496ED)](Dockerfile)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Deployed on fly.io as the app `antenna-ai-project` in the `fra` region (see `fly.toml`).
-
-## Web application architecture
-
-The production interface is a handcrafted HTML/CSS/JavaScript application served by
-FastAPI on port 8080. It calls the existing Python inference/validation functions
-through same-origin JSON endpoints; it does **not** train, rewrite, or modify the
-model/data science. `10_web_app.py` remains in the repository unchanged as the
-legacy Streamlit rollback reference.
-
-```text
-browser → FastAPI (/api/*) → backend/engine_core.py → existing engine_v2.py / CST data / trained model
-```
+> A FastAPI workbench for forward and inverse CPW antenna synthesis, bringing CST-backed simulation data and an existing trained surrogate into one deployable design workflow.
 
 ---
 
-## What it does
+### 📌 Overview & Engineering Background
 
-| Capability | Description |
-|---|---|
-| **Forward prediction** | Given CST-backed patch length `Lp` and width `Wp` (10–35 mm) plus one of 12 shapes, predict resonant frequency, bandwidth, S11 minimum, VSWR, gain and radiation efficiency, plus the full 1–7 GHz S11 curve. |
-| **Inverse design** | Given a target frequency, a shape family and an optimisation priority, search the `(Lp, Wp)` space for the best-matching geometry. |
-| **Visual analysis** | Real 2D SVG geometry, optional 3D Plotly structure, and hoverable S11/VSWR response curves for each forward result. |
-| **CST data story** | Dataset-backed Lp/Wp scatter and resonant-frequency histogram, sampled deterministically from the CST CSV. |
-| **Validation** | Leave-one-out fidelity benchmark against the CST dataset, with MAE / P90 / Max / R² for every predicted quantity. |
-| **AETHER assistant** | Groq-backed chat for questions about the design and the results. |
+AntDesigner is a graduation research project from the Technical College of Engineering, Communication Department, Sulaymaniyah Polytechnic University. It focuses on coplanar-waveguide-fed microstrip patch antenna synthesis across the project’s 1–7 GHz frequency range and 12 patch shapes grouped into four families.
 
-## Prediction method — and which part produces the answer
+The deployed interface is a static HTML/CSS/JavaScript application served by FastAPI. Its scientific engine retains the existing CST-data and ML inference paths; this repository does not train or retrain the model.
 
-The app has two predictors and **uses both**:
+The workbench provides:
 
-1. **CST interpolation** — looks up `antenna_data_cleaned.csv` and interpolates between
-   simulated points. This is the anchor.
-2. **The trained Keras surrogate** (~115 MB) — blended in at `ML_BLEND_WEIGHT` (default
-   **25%**) whenever the query is more than `ML_BLEND_RADIUS_MM` (default **0.60 mm**) from
-   the nearest CST point.
+- **Forward prediction:** evaluate a shape and patch dimensions and return antenna metrics and response curves.
+- **Inverse design:** search for a geometry for a target resonant frequency, shape family, and optimization priority.
+- **Visual analysis:** antenna geometry views, Plotly visuals, and S11/VSWR response charts.
+- **Engine validation:** run the application’s validation workflows against the data and model available to the running instance.
+- **AETHER:** optional server-side Groq chat, enabled with `GROQ_API_KEY`.
 
-Within 0.60 mm of a real simulation point the CST curve is used **verbatim** — it is ground
-truth, so there is nothing for a surrogate to improve. Beyond it, the answer is 75% CST
-interpolation + 25% neural model.
+The public FastAPI workbench constrains Lp and Wp to 10–35 mm, as configured in the API. The legacy Streamlit entry point, `10_web_app.py`, remains at the repository root as a rollback and parity reference; it is not the production entry point.
 
-The production Forward workbench accepts only **10–35 mm** for Lp and Wp: that is the
-CST-backed/model-trained geometry domain. The legacy 5–40 mm clamp remains untouched in
-the rollback/reference source but is not exposed by the new website.
+### 📊 System Architecture
 
-Both constants are at the top of `10_web_app.py`. Set `ML_BLEND_WEIGHT = 0.0` for pure CST
-interpolation, or raise it toward `1.0` to trust the model more. The **Use the trained neural
-model** checkbox toggles it per run, and the engine-mode line under each result states
-exactly which combination produced that answer.
+The architecture diagram is maintained in [`docs/architecture.md`](docs/architecture.md). The FastAPI backend is under `src/backend/`; the browser application is under `web/`. Root-level antenna modules and `engine_v2.py` remain in place for compatibility with the unchanged Streamlit reference.
 
-> Before this change the surrogate was loaded but effectively unused: swapping in a
-> completely different network left the output bit-identical (`0.000e+00 dB` difference).
-> Use **Engine Validation → "Compare CST vs. model"** to score both paths on the same
-> held-out geometries and tune `ML_BLEND_WEIGHT` accordingly.
+### 🛠️ Tech Stack
 
-For the CST path, the estimator is chosen by what the dataset supports:
+- **Language:** Python 3.11; browser-side JavaScript, HTML, and CSS.
+- **Web/API:** FastAPI, Uvicorn, Pydantic.
+- **Scientific and ML libraries:** NumPy, pandas, TensorFlow CPU, scikit-learn, SciPy, Joblib, and Matplotlib.
+- **Browser visualization:** Plotly.js, served locally from `web/vendor/`.
+- **Model and data delivery:** Hugging Face Hub; the full model and CST CSV are external to Git.
+- **Optional assistant:** Groq API, configured server-side.
+- **Interfaces and standards:** same-origin HTTP/JSON API; Git LFS pointer files are retained for the tracked scaler paths.
+- **Deployment and verification:** Docker, Fly.io, and Python verification scripts under `tests/`.
 
-| Mode | When it applies |
-|---|---|
-| `CSV-exact` | The exact `(Lp, Wp)` point exists in the dataset. The simulated curve passes through **unmodified** — this is ground truth and is never altered. |
-| `CSV-bilinear` | The four surrounding grid nodes all exist. Standard bilinear interpolation over the cell. |
-| `CSV-plane` | A surrounding grid node is missing. First-order weighted local-plane fit. |
-| `CSV-knn` | Last resort. Inverse-distance blend of the nearest points. |
+### 🚀 Quick Start & Installation
 
-The **Active engine components** panel on the home page reports which of these are
-actually loaded at runtime, so the UI cannot claim a method it is not running.
-
-### Resonance-aligned curve blending
-
-Naively averaging S11 curves whose dips sit at *different* frequencies fills in the
-resonance — the composite minimum ends up far too shallow and in the wrong place.
-Measured under leave-one-out, plain weighted blending gave an **S11min MAE of 13.2 dB**.
-
-`align_curves()` therefore shifts each contributing curve so its own dip coincides with
-the interpolated target resonance *before* averaging. Measured effect:
-
-| Metric (leave-one-out, 150 held-out geometries) | Plain blend | Resonance-aligned |
-|---|---|---|
-| fr MAE | 370.1 MHz | **225.2 MHz** |
-| fr R² | 0.127 | **0.528** |
-| S11min MAE | 12.78 dB | **1.56 dB** |
-| S11min R² | −1.131 | **0.771** |
-| Bandwidth MAE | 94.1 MHz | **17.1 MHz** |
-| fr within ±2 % | 56.7 % | **75.3 %** |
-
-> These figures were measured on a synthetic dataset with the same schema, because the
-> CST CSV is not bundled with the repo. **Re-run the Engine Validation panel against the
-> real `antenna_data_cleaned.csv` to get the authoritative numbers for your report.**
-
-Set `RESONANCE_ALIGN = False` at the top of `10_web_app.py` to reproduce the pre-change
-plain-average behaviour exactly, for comparison against previously published results.
-
-## Repository layout
-
-```
-backend/main.py         FastAPI routes, ready-only engine startup, static serving, validation jobs
-backend/engine_core.py  API-side copy of legacy numerical functions; no algorithmic rewrite
-backend/aether.py       Server-side Groq adapter and legacy model-fallback order
-frontend/               Approved warm HTML/CSS/JS site, local fonts, local Plotly runtime
-10_web_app.py           Untouched legacy Streamlit app (rollback/reference only)
-engine_v2.py            Untouched Two-Brain 2.0 inference path
-antenna_viz.py          Existing 12-shape geometry renderer + animated HTML helper
-antenna_charts.py       Existing Plotly/SVG chart helpers
-assets/                 AntDesigner and SPU logo assets, served at /assets
-Dockerfile              API image build; pre-fetches model + dataset at build time
-fly.toml                Fly.io port-8080 health-check configuration
-tests/test_parity.py    Original-function versus FastAPI numerical-parity verification
-```
-
-### External assets
-
-Models and datasets are **not** in git. They live in the Hugging Face model repo
-[`kara-nawzad/antenna-models`](https://huggingface.co/kara-nawzad/antenna-models)
-(override with the `HF_REPO` env var) and are fetched at Docker **build** time:
-
-| File | Size | Purpose |
-|---|---|---|
-| `forward_model_v2_curve.keras` | ~115 MB | Main surrogate, 2 heads → 4 scalars + 151-point curve |
-| `antenna_data_cleaned.csv` | ~7.8 MB | CST simulation dataset (151 frequency columns) |
-| `s11_dip_specialist.pkl` | — | Dip specialist. **Currently deleted from the Hub** — see Known issues. |
-
-`scaler_geo.pkl` and `scaler_perf.pkl` (~1.6 KB each) are tracked through Git LFS and
-must be materialized as real pickle bytes before local inference or a Docker/Fly build.
-
-## Running locally
+Use Python 3.11. Clone the repository and install the pinned dependencies:
 
 ```bash
+git clone https://github.com/kara-nawzad/Antenna-AI-Project.git
+cd Antenna-AI-Project
 python -m venv .venv
-# macOS/Linux
-source .venv/bin/activate
-# Windows PowerShell: .venv\Scripts\Activate.ps1
-pip install -r requirements.txt
-uvicorn backend.main:app --host 0.0.0.0 --port 8080
 ```
 
-Open `http://localhost:8080`. By default the server finishes loading the model, CST
-CSV, and scalers before it begins serving pages, so Forward and Inverse are ready when
-the site opens. The browser only calls same-origin `/api/*` routes. For local UI-only
-debugging, set `ANTDESIGNER_BACKGROUND_ENGINE_WARMUP=1` to opt into background loading.
+Activate the environment, then install dependencies. PowerShell activation:
 
-For AETHER, set `GROQ_API_KEY` in the server environment or Fly secrets. Never put it
-in frontend code. The legacy `.streamlit/secrets.toml.example` remains only for the
-untouched Streamlit rollback source; Streamlit is intentionally not installed in the
-production dependency set.
+```powershell
+.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+```
 
-## Verification
+macOS/Linux activation:
 
-Run these from a provisioned checkout after `pip install -r requirements.txt`:
+```bash
+source .venv/bin/activate
+python -m pip install -r requirements.txt
+```
+
+For full inference, the authentic `scaler_geo.pkl` and `scaler_perf.pkl` bytes must be provisioned locally at the repository root. Git tracks pointer files at those paths; do not commit replacement scaler bytes. The Keras model and CST CSV are not in Git and are fetched from the configured Hugging Face repository. Without the real local scalers, the server can report health but the inference engine cannot initialize successfully.
+
+Run the application from the repository root:
+
+```bash
+python -m uvicorn src.backend.main:app --host 0.0.0.0 --port 8080
+```
+
+Open <http://localhost:8080>. Check the health endpoint with:
+
+```bash
+curl -fsS http://localhost:8080/health
+```
+
+Set `GROQ_API_KEY` in the server environment to enable AETHER. Keep the key out of frontend files and Git.
+
+#### Docker
+
+With the genuine scaler files available locally, build and run the image:
+
+```bash
+docker build -t antdesigner .
+docker run --rm -p 8080:8080 antdesigner
+```
+
+The Dockerfile checks for unresolved scaler pointers, downloads the Keras model and CST CSV at build time, starts Uvicorn on port 8080, and checks `/health`. The Fly configuration uses the same port and health path.
+
+#### Verification scripts
+
+After installing the dependencies, run:
 
 ```bash
 python tests/test_engine_core_source.py
@@ -159,96 +100,14 @@ python tests/test_api_shell.py
 python tests/test_parity.py
 ```
 
-The first test statically proves that retained numerical function bodies and scientific
-constants in `backend/engine_core.py` match the pre-UI part of untouched
-`10_web_app.py`. The shell test verifies the FastAPI/static-app contract without running
-inference, including the bounded inverse fallback. The parity test compares 48 forward
-requests and 36 inverse requests, including the 1000-point response arrays, at `1e-9`
-absolute tolerance. It preserves the legacy inverse result when that result is inside the
-public 10–35 mm CST-backed range; if the unchanged legacy 5–40 mm solver selects an
-out-of-range, non-working, or greater-than-2%-error result, it verifies the API's
-bounded scan of exact CST rows for a working candidate within the existing 2% target
-tolerance instead. It
-deliberately reports **NOT VERIFIED** rather than passing when TensorFlow, the model/CSV,
-or materialized scaler files are unavailable.
+The parity script requires genuine scaler bytes, the model, and CST data. It reports **NOT VERIFIED** rather than claiming a pass when those assets are unavailable.
 
-## Deployment
+### 📈 Results & Performance Metrics
 
-From a Windows checkout with the **real** `scaler_geo.pkl` and `scaler_perf.pkl` bytes
-materialized, deployment remains a single command:
+No verified real-CST performance report or research paper is included in this repository, so no numerical performance table is presented here. Use the application’s **Engine Validation** workflow with the authentic CST dataset and model for project-specific measurements. Earlier repository documentation described synthetic-data comparison figures; they are not presented as verified CST results.
 
-```powershell
-fly deploy
-```
+### 👤 Author
 
-The Dockerfile installs the server dependencies and downloads the model plus CST CSV
-**during image build**. The app then finishes engine loading before it accepts visitor
-traffic, and Fly is configured not to auto-stop the resident machine. It intentionally
-fails early if the scalers are unresolved Git-LFS pointer files, rather than deploying an
-app that cannot initialize.
+**Kara Nawzad** — Communication Engineer
 
-For a local container verification:
-
-```bash
-docker build -t antdesigner .
-docker run --rm -p 8080:8080 antdesigner
-curl http://localhost:8080/health
-```
-
-### Rollback
-
-`10_web_app.py` is retained unchanged. After a merged deployment, roll back by
-reverting the rebuild commit/PR on `main`, pushing that revert, then running `fly deploy`
-again. This restores the previous Streamlit Docker entrypoint from git history.
-
----
-
-## Known issues
-
-### 1. The scalers are committed as Git LFS pointers
-
-`.gitattributes` routed `*.pkl` to LFS, so `scaler_geo.pkl` and `scaler_perf.pkl` are
-129-byte pointer files in git. A plain `git clone` therefore yields text, not pickles,
-and the app fails to start. fly.io works today only because `fly deploy` uploads your
-local working tree, where LFS has already materialised them. Any git-based host
-(Hugging Face Space, Streamlit Community Cloud, CI) will fail.
-
-The Dockerfile now fails the build early with an explicit message if it sees a pointer.
-To fix the repo permanently, on a machine with git-lfs installed:
-
-```bash
-git lfs install && git lfs pull
-git rm --cached scaler_geo.pkl scaler_perf.pkl
-git add .gitattributes scaler_geo.pkl scaler_perf.pkl
-git commit -m "store scalers as plain files, not LFS pointers"
-```
-
-### 2. The dip specialist is missing, so "Two-Brain 2.0" runs one brain
-
-`s11_dip_specialist.pkl` was deleted from the model repo (commit `36f0b05`). Without it
-`used_specialist` is always `False` and the app runs the CSV-anchor path alone. Re-upload
-the pickle to restore the specialist path, or relabel the engine in the UI.
-
-`engine_v2.py` previously hardcoded a different `HF_REPO` than the rest of the app; it now
-reads the same environment variable.
-
-### 3. `use_ml_refine` was a dead parameter
-
-The "Use ML refinement" checkbox was accepted by `forward_physics_first_v2()` but never
-read, so it could not change any output. It is now wired into the >0.6 mm branch, where it
-blends the surrogate into the CST anchor 75/25.
-
----
-
-## Performance notes
-
-| Fix | Measured effect |
-|---|---|
-| Model loaded once instead of twice | **145 MB less RSS** (measured with a 137 MB stand-in model) in a container that was capped at 1 GB |
-| Model fetched at Docker build time | Removes a ~115 MB US→Frankfurt download from the cold-start critical path |
-| Nav logo resized 1290×1044 → 128 px | **391,936 → 13,792 base64 chars per rerun** (28×), and it is displayed at 46×46 CSS px |
-| Startup healthcheck cached | Was a `model.predict()` (~87 ms) plus two column scans on **every** rerun |
-| `curve_columns()` memoised | 0.056 → 0.008 ms per call (7×), paid once per `forward_anchor` |
-| Two `time.sleep(0.7)` calls removed | 1.4 s of artificial latency deleted |
-| `requirements.txt` pinned | Rebuilds are reproducible; pandas 3.0 can no longer break a redeploy |
-| Container memory 1 GB → 2 GB | Headroom for TensorFlow + a 115 MB model without OOM restarts |
+[GitHub profile](https://github.com/kara-nawzad) · [Live application](https://antenna-ai-project.fly.dev/)

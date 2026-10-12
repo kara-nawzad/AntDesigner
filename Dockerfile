@@ -20,7 +20,11 @@ WORKDIR /app
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY src/ ./src/
+COPY web/ ./web/
+COPY assets/ ./assets/
+COPY engine_v2.py antenna_charts.py antenna_viz.py ./
+COPY scaler_geo.pkl scaler_perf.pkl ./
 
 # Fail before a long model download if the two required small scalers were copied
 # as Git-LFS pointer text rather than their real pickle bytes.
@@ -47,4 +51,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
     CMD curl -fsS http://localhost:8080/health || exit 1
 
-CMD ["uvicorn", "backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8080"]

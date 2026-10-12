@@ -54,8 +54,8 @@ class NumericalParityTests(unittest.TestCase):
     def setUpClass(cls) -> None:
         from fastapi.testclient import TestClient
 
-        import backend.engine_core as core
-        import backend.main as main
+        import src.backend.engine_core as core
+        import src.backend.main as main
 
         cls.core = core
         cls.main = main
