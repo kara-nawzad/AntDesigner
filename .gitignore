@@ -1,21 +1,73 @@
-*.keras
-*.h5
+# Python bytecode, environments, and test/tool caches
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.venv/
 venv/
 myenv/
-*.bat
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local secrets and environment files
+.env
+.env.*
+!.env.example
+.streamlit/secrets.toml
+
+# Operating-system and editor artifacts
+.DS_Store
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Logs and generated build output
 *.log
-processed_data.npz
-forward_model_v2_report.json
-s11_dip_specialist_report.json
+build/
+dist/
+coverage/
+out/
+target/
+
+# Frontend dependencies and tool caches (the shipped frontend is static)
+node_modules/
+.npm/
+.cache/
+.vite/
+.parcel-cache/
+.next/
+
+# MATLAB/editor scratch artifacts
+*.asv
+slprj/
+
+# Model weights and generated inference artifacts; never commit these binaries
+*.keras
+*.h5
+*.npz
 s11_dip_specialist.pkl
+s11_dip_specialist_shrunk.pkl.gz
 s11_min_model.pkl
 forward_model_v2.pkl
 forward_model_v2_curve.pkl
 forward_model_v2_curve_shrunk.pkl
+forward_model_v2_report.json
+s11_dip_specialist_report.json
+
+# External CST datasets (full data is fetched from the model/data repository)
 antenna_data_cleaned.csv
 antenna_data_website.csv
 antenna_data.csv
-s11_dip_specialist_shrunk.pkl.gz
-shrink_specialist.py
+
+# Generated processing artifact
+processed_data.npz

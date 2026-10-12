@@ -1,6 +1,9 @@
-Put your university logo here as:
+# Shared image assets
 
-  spu_logo.png
+The FastAPI application serves this directory at `/assets/`. Its browser UI currently uses:
 
-Recommended: PNG with transparent background, about 400–800 px wide.
-The website loads it automatically for the home page header.
+- `antdesigner_favicon.png`
+- `antdesigner_logo_nav.png`
+- `spu_logo_nav.png`
+
+The unchanged legacy Streamlit reference uses `antdesigner_favicon.png`, `antdesigner_logo_light.png`, and `spu_logo_nav.png`. Other image variants in this directory are retained as project assets; no generated or placeholder artwork is used.

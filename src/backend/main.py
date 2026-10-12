@@ -1,7 +1,7 @@
 """FastAPI application for the AntDesigner HTML rebuild.
 
 The API is deliberately a thin transport layer.  Numerical work is delegated to
-``backend.engine_core`` (the legacy Streamlit science copied without algorithmic
+``src.backend.engine_core`` (the legacy Streamlit science copied without algorithmic
 changes) and ``engine_v2.py`` (left untouched).
 """
 from __future__ import annotations
@@ -25,10 +25,10 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from backend import aether
+from . import aether
 
-PROJECT_ROOT = Path(__file__).resolve().parent.parent
-FRONTEND_DIR = PROJECT_ROOT / "frontend"
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
+FRONTEND_DIR = PROJECT_ROOT / "web"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 
 
@@ -246,7 +246,7 @@ class EngineManager:
             # Original loaders use project-relative model/data paths. Docker's
             # WORKDIR is /app; this also makes local uvicorn invocation reliable.
             os.chdir(PROJECT_ROOT)
-            core = importlib.import_module("backend.engine_core")
+            core = importlib.import_module("src.backend.engine_core")
             fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist = core.load_brains()
             db = core.load_data()
             if db is None:

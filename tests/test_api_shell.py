@@ -15,7 +15,7 @@ os.environ.setdefault("ANTDESIGNER_DISABLE_ENGINE_WARMUP", "1")
 IMPORT_ERROR = None
 try:
     from fastapi.testclient import TestClient
-    from backend.main import EngineManager, app
+    from src.backend.main import EngineManager, app
 except ModuleNotFoundError as exc:  # clear standalone result on an unprovisioned host
     TestClient = None
     EngineManager = None
@@ -92,7 +92,7 @@ class ApiShellTests(unittest.TestCase):
             for shape_id in (1, 2, 3)
         ])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(OutsideRangeCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(OutsideRangeCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
@@ -125,7 +125,7 @@ class ApiShellTests(unittest.TestCase):
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(NoBoundedCandidateCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(NoBoundedCandidateCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
@@ -159,7 +159,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": 1, "Lp": 20.0, "Wp": 20.0, "fr (GHz)": 3.51},
         ])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(InDomainAnchorCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(InDomainAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
@@ -191,7 +191,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": 1, "Lp": 30.0, "Wp": 20.0, "fr (GHz)": 3.52},
         ])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(TiedAnchorCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(TiedAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
@@ -219,7 +219,7 @@ class ApiShellTests(unittest.TestCase):
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 10.0, "Wp": 10.0, "fr (GHz)": 3.5}])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(PoorMatchCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(PoorMatchCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},
@@ -247,7 +247,7 @@ class ApiShellTests(unittest.TestCase):
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
         resources = (None, None, None, None, None, db)
-        with patch("backend.main.engine_manager.context", return_value=(NonWorkingCore(), resources)):
+        with patch("src.backend.main.engine_manager.context", return_value=(NonWorkingCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
                 json={"target_fr": 3.5, "family": "Rectangular", "priority": "Balanced Profile"},

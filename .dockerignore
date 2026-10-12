@@ -2,9 +2,26 @@
 .venv
 venv
 myenv
-__pycache__
-*.pyc
+__pycache__/
+*.py[cod]
 *.log
 .pytest_cache
 .mypy_cache
 .DS_Store
+Thumbs.db
+
+# Documentation, tests, and the Streamlit rollback UI are not part of the API image.
+docs/
+tests
+10_web_app.py
+antdesigner_theme.py
+.streamlit
+.devcontainer
+
+# Model weights and full CST datasets are fetched from Hugging Face during the image build.
+*.keras
+*.h5
+*.npz
+antenna_data_cleaned.csv
+antenna_data_website.csv
+antenna_data.csv

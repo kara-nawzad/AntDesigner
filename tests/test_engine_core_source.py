@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 LEGACY = ROOT / "10_web_app.py"
-CORE = ROOT / "backend" / "engine_core.py"
+CORE = ROOT / "src" / "backend" / "engine_core.py"
 UI_ONLY = {
     "sync_lp_from_slider",
     "sync_lp_from_input",
