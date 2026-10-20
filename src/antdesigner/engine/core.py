@@ -157,10 +157,9 @@ def vna_measure(freqs, curve):
 def _load_scaler(path):
     """joblib.load with an actionable error for an unresolved Git LFS pointer.
 
-    scaler_geo.pkl / scaler_perf.pkl are ~1.6 KB and are routed to Git LFS by
-    .gitattributes. A plain `git clone` (what any git-based host such as a Hugging
-    Face Space or Streamlit Community Cloud does) leaves 129-byte pointer text
-    behind, and joblib then fails with an opaque unpickling error.
+    The tracked scaler paths may contain 129-byte Git LFS pointer text rather
+    than pickle bytes. The current .gitattributes has no active *.pkl LFS rule;
+    this guard also catches pointers retained in existing Git objects or checkouts.
     """
     if not os.path.exists(path):
         raise FileNotFoundError(f"Missing {path}")
