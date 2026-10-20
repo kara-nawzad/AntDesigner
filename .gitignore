@@ -1,27 +1,24 @@
-# Python bytecode, environments, and test/tool caches
+# Python
 __pycache__/
 *.py[cod]
 *$py.class
 .venv/
 venv/
-myenv/
 env/
 .pytest_cache/
 .mypy_cache/
 .ruff_cache/
 .tox/
 .nox/
-.coverage
-.coverage.*
+.coverage*
 htmlcov/
 
 # Local secrets and environment files
 .env
 .env.*
 !.env.example
-.streamlit/secrets.toml
 
-# Operating-system and editor artifacts
+# OS/editor
 .DS_Store
 Thumbs.db
 desktop.ini
@@ -31,7 +28,7 @@ desktop.ini
 *.swo
 *~
 
-# Logs and generated build output
+# Build output and logs
 *.log
 build/
 dist/
@@ -39,7 +36,7 @@ coverage/
 out/
 target/
 
-# Frontend dependencies and tool caches (the shipped frontend is static)
+# Frontend tooling caches
 node_modules/
 .npm/
 .cache/
@@ -47,11 +44,11 @@ node_modules/
 .parcel-cache/
 .next/
 
-# MATLAB/editor scratch artifacts
+# MATLAB/editor scratch
 *.asv
 slprj/
 
-# Model weights and generated inference artifacts; never commit these binaries
+# External model/data artifacts; do not commit
 *.keras
 *.h5
 *.npz
@@ -63,11 +60,7 @@ forward_model_v2_curve.pkl
 forward_model_v2_curve_shrunk.pkl
 forward_model_v2_report.json
 s11_dip_specialist_report.json
-
-# External CST datasets (full data is fetched from the model/data repository)
 antenna_data_cleaned.csv
 antenna_data_website.csv
 antenna_data.csv
-
-# Generated processing artifact
 processed_data.npz

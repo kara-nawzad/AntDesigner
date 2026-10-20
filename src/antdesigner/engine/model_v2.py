@@ -43,7 +43,7 @@ FREQS_RAW = np.linspace(1.0, 7.0, 151)
 def load_v2_engines(model_dir=None, main_model=None):
     """Load the Two-Brain 2.0 stack (or fall back to v1 if v2 is missing).
 
-    main_model : optional already-loaded Keras model. 10_web_app.load_brains() loads
+    main_model : optional already-loaded Keras model. the API engine loads loads
       forward_model_v2_curve.keras for the v1 path; passing that same object here
       avoids loading the identical 115 MB model a second time. Holding two full
       copies of it plus TensorFlow inside a 1 GB container was the single largest

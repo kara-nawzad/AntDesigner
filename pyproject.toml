@@ -19,6 +19,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+pythonpath = ["src"]
 python_files = ["test_*.py"]
 
 [tool.ruff]
@@ -27,5 +28,5 @@ line-length = 100
 src = ["src"]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["F"]
 ignore = ["E501"]

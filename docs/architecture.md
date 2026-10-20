@@ -1,44 +1,31 @@
-# System architecture
+# Architecture
 
-The production service is a single FastAPI process on port 8080. It serves the browser application and API from the same origin; the legacy Streamlit source is retained separately for rollback/parity purposes.
+The production service is a single FastAPI process on port 8080. It serves the static browser UI and API from the same origin. The retired Streamlit interface is not part of this repository; a pre-cleanup Git tag is the intended recovery point for that source.
 
 ```mermaid
 flowchart LR
-    Browser[Browser]
-    Web["web/ static UI<br/>HTML · CSS · JavaScript · Plotly.js"]
-    API["FastAPI<br/>src/backend/main.py<br/>port 8080"]
-    Assets["Shared images<br/>assets/ → /assets/*"]
-    Core["Numerical API engine<br/>src/backend/engine_core.py"]
-    V2["Existing inference module<br/>engine_v2.py (root)"]
-    External["Hugging Face Hub<br/>Keras model + CST CSV"]
-    Scalers["scaler_geo.pkl + scaler_perf.pkl<br/>tracked Git LFS pointer files;<br/>real bytes are provisioned locally"]
-    Viz["Visualization helpers<br/>antenna_viz.py + antenna_charts.py (root)"]
-    Aether["AETHER adapter<br/>src/backend/aether.py"]
-    Groq["Groq API<br/>only when GROQ_API_KEY is set"]
-    Fly["Fly.io container<br/>HTTP port 8080 · /health"]
-    Legacy["Legacy Streamlit reference<br/>10_web_app.py (root)"]
-
-    Browser <-->|"same-origin HTTP"| API
-    API -->|"/static/*"| Web
-    API -->|"/assets/*"| Assets
-    API --> Core
-    Core --> V2
-    Core --> Scalers
-    V2 -. "fetches missing model assets" .-> External
-    Core --> Viz
-    API --> Aether
-    Aether -. "optional chat" .-> Groq
-    Fly --> API
-    Legacy -. "rollback/parity source" .-> V2
-    Legacy -.-> Viz
-    Legacy -.-> Assets
+    Browser[Browser] <-->|same-origin HTTP| API["FastAPI<br/>antdesigner.api.main"]
+    API --> Web["web/ static UI"]
+    API --> Images["assets/ served at /assets"]
+    API --> Core["antdesigner.engine.core"]
+    Core --> V2["antdesigner.engine.model_v2"]
+    Core --> Viz["antdesigner.visualization"]
+    Core --> Scalers["Root scaler files"]
+    Core -.-> HF["Hugging Face model + CST CSV"]
+    API --> Aether["antdesigner.services.aether"]
+    Aether -. optional .-> Groq["Groq API"]
+    Fly["Fly.io / Docker"] --> API
 ```
 
 ## Runtime paths
 
-- `src/backend/main.py` owns FastAPI routes, synchronous engine startup, static serving, health reporting, and validation/API orchestration.
-- `src/backend/engine_core.py` contains the API-side numerical functions and loads the unchanged root-level `engine_v2.py` module.
-- `src/backend/aether.py` calls Groq only when a server-side `GROQ_API_KEY` is configured.
-- `web/` is mounted at `/static`; root `assets/` is mounted at `/assets`. These URLs are same-origin with the API.
-- The Docker image downloads the model and CST CSV during build. The scaler paths are checked at build time and must contain genuine local scaler bytes for a usable engine; committed Git LFS pointer text is not pickle data.
-- Fly.io uses internal port 8080 and the `/health` HTTP check defined in `fly.toml`.
+- `src/antdesigner/api/main.py` owns FastAPI startup, API routes, health reporting, validation jobs, and static serving.
+- `src/antdesigner/engine/core.py` loads the numerical engine, root-level scaler paths, external model/data, and orchestrates predictions and validation.
+- `src/antdesigner/engine/model_v2.py` contains the trained-model inference helper.
+- `src/antdesigner/visualization/` serves API-generated antenna and Plotly visuals.
+- `src/antdesigner/services/aether.py` contacts Groq only when `GROQ_API_KEY` is set.
+- `web/` is mounted at `/static`; `assets/` is mounted at `/assets`.
+- Docker downloads the Keras model and CST CSV during build. It expects authentic scaler pickle files at the project root and rejects unresolved LFS pointer contents.
+- Fly uses internal port 8080 and the `/health` check in `fly.toml`.
+
+Route paths and request/response contracts are owned by `api/main.py`; frontend calls are in `web/js/app.js`.
