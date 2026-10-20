@@ -15,7 +15,6 @@ scipy==1.13.1
 groq==0.11.0
 huggingface_hub==0.25.2
 plotly==5.24.1
-pillow==10.4.0
 # HTML rebuild API. httpx is pinned below 0.28 so groq==0.11.0 constructs
 # cleanly without the historical Client(..., proxies=...) incompatibility.
 fastapi==0.115.6
