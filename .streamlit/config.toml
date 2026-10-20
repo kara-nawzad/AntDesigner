@@ -1,9 +1,0 @@
-# Native Streamlit theme (warm, light). MERGE into an existing config.toml; never overwrite other settings.
-[theme]
-base = "light"
-primaryColor = "#4F46E5"
-backgroundColor = "#F5F2EA"
-secondaryBackgroundColor = "#FFFDF8"
-textColor = "#14213D"
-font = "sans serif"
-
