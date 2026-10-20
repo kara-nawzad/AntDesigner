@@ -215,7 +215,7 @@ def patch_polygons(antenna_id, lp, wp):
 # Animated, interactive antenna drawing (AntDesigner warm/light style)
 #
 # Same geometry as draw_antenna() -- it is built from patch_polygons(), so every
-# vertex comes from the real design. Use it in Streamlit with:
+# vertex comes from the real design. Use it from the application with:
 #     import streamlit.components.v1 as components
 #     components.html(antenna_animated_html(aid, lp, wp, label), height=640)
 # Motion: blueprint grid fades in, substrate + metal outlines draw themselves, the

@@ -4,7 +4,7 @@ Interactive Plotly charts for the antenna synthesis app.
 Replaces the static matplotlib PNGs in the forward-design section. The numbers come
 from the engine unchanged -- this module only renders them. Plotly figures are
 vector/SVG in the browser, so they cost far less bandwidth than the base64 raster
-PNGs Streamlit was pushing on every rerun, and they give hover readouts of the exact
+PNGs the old interface was pushing on every rerun, and they give hover readouts of the exact
 S11/VSWR at any frequency, which is what an RF engineer actually wants from a plot.
 
 Note on Smith charts: a Smith chart needs complex S11 (magnitude AND phase). The CST
@@ -233,7 +233,7 @@ def patch_3d_fig(antenna_id, lp, wp, shape_label=""):
     face. CPW is a planar technology -- ground, feed and patch all sit in the same
     plane -- so the third dimension is the substrate thickness and the viewing angle,
     which is what makes the layering and the feed gap legible."""
-    from antenna_viz import patch_polygons
+    from antdesigner.visualization.antenna import patch_polygons
     g = patch_polygons(antenna_id, lp, wp)
     sw, sl = g["substrate"]
 

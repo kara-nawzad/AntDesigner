@@ -12,7 +12,7 @@ Public API:
   predict_dip_specialist(...) -> (f_dip_ghz, s11_min_db)
   apply_anchor_blend(...)     -> the 50-MHz window replacement of the curve
 
-Backward compatible with 10_web_app.py v1 forward_ml() / forward_anchor() helpers.
+Backward compatible with the retired Streamlit entry point v1 forward_ml() / forward_anchor() helpers.
 """
 import os
 import numpy as np
@@ -20,7 +20,7 @@ import joblib
 import tensorflow as tf
 
 # Respect the HF_REPO environment variable (fly.toml / Dockerfile set it). It was
-# previously hardcoded to a different account's repo than 10_web_app.py used, so the
+# previously hardcoded to a different account's repo than the retired Streamlit entry point used, so the
 # dip specialist was never fetched from the right place.
 HF_REPO = os.getenv("HF_REPO", "kara-nawzad/antenna-models")
 
@@ -43,8 +43,8 @@ FREQS_RAW = np.linspace(1.0, 7.0, 151)
 def load_v2_engines(model_dir=None, main_model=None):
     """Load the Two-Brain 2.0 stack (or fall back to v1 if v2 is missing).
 
-    main_model : optional already-loaded Keras model. 10_web_app.load_brains() loads
-      forward_model_v2_curve.keras for the v1 path; passing that same object here
+    main_model : optional already-loaded Keras model. The API engine loads
+      forward_model_v2_curve.keras for the main path; passing that same object here
       avoids loading the identical 115 MB model a second time. Holding two full
       copies of it plus TensorFlow inside a 1 GB container was the single largest
       memory cost in the app and the most likely cause of OOM restarts.
@@ -213,7 +213,7 @@ def apply_anchor_blend(freqs, curve, f_dip, s11_min, window_mhz=50.0, anchor_str
 
 
 # ---------------------------------------------------------------------------
-# Main entry point used by 10_web_app.py
+# Main entry point used by the retired Streamlit entry point
 # ---------------------------------------------------------------------------
 def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
                use_anchor=True, blend_window_mhz=50.0, anchor_strength=1.0,
@@ -229,7 +229,7 @@ def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
         blend_window_mhz: width of the specialist blend window (default 50 MHz)
         anchor_strength: 0..1, how strongly the specialist overrides (default 1.0)
 
-    Returns: dict (matches 10_web_app.py forward_ml() output format)
+    Returns: dict (matches the retired Streamlit entry point forward_ml() output format)
     """
     # Build the 14-dim input (Lp, Wp, 12 shape one-hots) and scale
     x = np.zeros((1, 14), dtype=float)

@@ -252,7 +252,7 @@
       const form = $('#aether-form');
       if (!health.aether_configured) {
         aetherNotice.hidden = false;
-        aetherNotice.textContent = 'Set GROQ_API_KEY in `.streamlit/secrets.toml` or your environment to enable AETHER Assistant.';
+        aetherNotice.textContent = 'Set GROQ_API_KEY in the server environment to enable AETHER Assistant.';
         $('textarea', form).disabled = true;
         $('button', form).disabled = true;
       } else {

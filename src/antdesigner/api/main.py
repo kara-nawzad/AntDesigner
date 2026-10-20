@@ -1,8 +1,7 @@
 """FastAPI application for the AntDesigner HTML rebuild.
 
 The API is deliberately a thin transport layer.  Numerical work is delegated to
-``src.backend.engine_core`` (the legacy Streamlit science copied without algorithmic
-changes) and ``engine_v2.py`` (left untouched).
+``antdesigner.engine.core`` and ``antdesigner.engine.model_v2``.
 """
 from __future__ import annotations
 
@@ -25,9 +24,9 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from . import aether
+from antdesigner.services import aether
 
-PROJECT_ROOT = Path(__file__).resolve().parents[2]
+PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_DIR = PROJECT_ROOT / "web"
 ASSETS_DIR = PROJECT_ROOT / "assets"
 
@@ -246,7 +245,7 @@ class EngineManager:
             # Original loaders use project-relative model/data paths. Docker's
             # WORKDIR is /app; this also makes local uvicorn invocation reliable.
             os.chdir(PROJECT_ROOT)
-            core = importlib.import_module("src.backend.engine_core")
+            core = importlib.import_module("antdesigner.engine.core")
             fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist = core.load_brains()
             db = core.load_data()
             if db is None:
@@ -659,7 +658,7 @@ def inverse(payload: InverseRequest) -> dict[str, Any]:
 def antenna_visual(payload: AntennaVisualRequest) -> dict[str, str]:
     lp, wp = _validate_shape_and_dimensions(payload.shape_id, payload.lp, payload.wp)
     try:
-        from antenna_viz import antenna_animated_html
+        from antdesigner.visualization.antenna import antenna_animated_html
 
         # Labels are canonical server metadata rather than arbitrary HTML-client input.
         label = next(label for label, sid in API_SHAPES.items() if sid == payload.shape_id)
@@ -673,7 +672,7 @@ def response_visual(payload: ResponseVisualRequest) -> dict[str, str]:
     if not (len(payload.f) == len(payload.c) == len(payload.v)):
         raise HTTPException(status_code=422, detail="f, c, and v must have the same length.")
     try:
-        from antenna_charts import s11_vswr_animated_html
+        from antdesigner.visualization.charts import s11_vswr_animated_html
 
         return {
             "html": s11_vswr_animated_html(
@@ -688,7 +687,7 @@ def response_visual(payload: ResponseVisualRequest) -> dict[str, str]:
 def three_d_visual(payload: ThreeDVisualRequest) -> dict[str, Any]:
     lp, wp = _validate_shape_and_dimensions(payload.shape_id, payload.lp, payload.wp)
     try:
-        import antenna_charts
+        from antdesigner.visualization import charts as antenna_charts
 
         label = next(label for label, sid in API_SHAPES.items() if sid == payload.shape_id)
         return json_safe(antenna_charts.patch_3d_fig(payload.shape_id, lp, wp, label).to_plotly_json())
@@ -699,7 +698,7 @@ def three_d_visual(payload: ThreeDVisualRequest) -> dict[str, Any]:
 @app.post("/api/visual/compare")
 def comparison_visual(payload: CompareVisualRequest) -> dict[str, Any]:
     try:
-        import antenna_charts
+        from antdesigner.visualization import charts as antenna_charts
 
         entries = [{"label": entry.label, "f": entry.f, "c": entry.c} for entry in payload.entries]
         return json_safe(antenna_charts.compare_fig(entries).to_plotly_json())
@@ -714,7 +713,7 @@ def design_space_visual(shape_id: int) -> dict[str, Any] | None:
     _, resources = engine_manager.context()
     *_, db = resources
     try:
-        import antenna_charts
+        from antdesigner.visualization import charts as antenna_charts
 
         label = next(label for label, sid in API_SHAPES.items() if sid == shape_id)
         figure = antenna_charts.design_space_fig(db, shape_id, label)

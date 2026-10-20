@@ -13,7 +13,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     TF_NUM_INTEROP_THREADS=1 \
     OMP_NUM_THREADS=1 \
     TF_CPP_MIN_LOG_LEVEL=2 \
-    HF_HUB_DISABLE_TELEMETRY=1
+    HF_HUB_DISABLE_TELEMETRY=1 \
+    PYTHONPATH=/app/src
 
 WORKDIR /app
 
@@ -23,7 +24,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY web/ ./web/
 COPY assets/ ./assets/
-COPY engine_v2.py antenna_charts.py antenna_viz.py ./
+
 COPY scaler_geo.pkl scaler_perf.pkl ./
 
 # Fail before a long model download if the two required small scalers were copied
@@ -51,4 +52,4 @@ EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=10s --start-period=300s --retries=5 \
     CMD curl -fsS http://localhost:8080/health || exit 1
 
-CMD ["python", "-m", "uvicorn", "src.backend.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["python", "-m", "uvicorn", "antdesigner.api.main:app", "--host", "0.0.0.0", "--port", "8080"]

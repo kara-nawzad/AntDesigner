@@ -1,0 +1,16 @@
+name: Bug report
+description: Report a reproducible problem.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Include steps to reproduce and expected behavior.
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Browser, endpoint/origin, and relevant runtime details. Never include secrets.

@@ -10,13 +10,10 @@ __pycache__/
 .DS_Store
 Thumbs.db
 
-# Documentation, tests, and the Streamlit rollback UI are not part of the API image.
+# Documentation, tests, and development-container metadata are not part of the API image.
 docs/
-tests
-10_web_app.py
-antdesigner_theme.py
-.streamlit
-.devcontainer
+tests/
+.devcontainer/
 
 # Model weights and full CST datasets are fetched from Hugging Face during the image build.
 *.keras
