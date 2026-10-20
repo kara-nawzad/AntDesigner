@@ -21,7 +21,7 @@ Set these URLs to the actual endpoints, replacing the custom-domain placeholder:
 
 ```bash
 FLY_URL=https://antenna-ai-project.fly.dev
-CUSTOM_URL=https://YOUR-CUSTOM-DOMAIN-URL
+CUSTOM_URL='[MY CUSTOM DOMAIN URL - FILL IN]'
 for url in "$FLY_URL" "$CUSTOM_URL"; do
   curl -fsS "$url/health"
   curl -fsS "$url/api/meta"
