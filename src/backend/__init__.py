@@ -1,1 +1,0 @@
-"""AntDesigner FastAPI backend package."""

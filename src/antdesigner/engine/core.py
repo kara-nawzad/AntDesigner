@@ -1,20 +1,7 @@
-"""
-API-side engine core for AntDesigner.
+"""Scientific engine functions used by the production API.
 
-The numerical functions below are copied from ``10_web_app.py`` without
-algorithmic changes so FastAPI calls the same inference, interpolation, inverse,
-and validation paths as the legacy Streamlit application.
-
-Source map in 10_web_app.py:
-- constants/loading/helpers: lines 20-437
-- forward paths: lines 438-684
-- validation paths: lines 685-856 and 925-1021
-- inverse solver: lines 881-924
-
-Allowed integration-only changes: Streamlit cache decorators are replaced with
-``functools.lru_cache`` for the two process-wide loaders, and Streamlit slider
-synchronization callbacks are omitted because those are browser UI concerns.
-``engine_v2.py`` is imported and called unchanged.
+The module loads scaler files from the repository root and external model/data
+assets from the configured Hugging Face repository.
 """
 from __future__ import annotations
 
@@ -43,7 +30,7 @@ def _download_hf(filename):
 
 # Two-Brain 2.0 engine (optional: falls back gracefully if files missing)
 try:
-    import engine_v2
+    from antdesigner.engine import model_v2 as engine_v2
     HAS_V2 = True
 except ImportError:
     HAS_V2 = False
@@ -703,7 +690,7 @@ def run_engine_self_test(_db, sample_size=220, seed=42, fr_tol_pct=2.0):
     the engine to interpolate from neighbouring CST points, which is the quantity
     that actually matters: how well it predicts a geometry it has never seen.
 
-    `_db` is underscore-prefixed so Streamlit does not hash the 7.7 MB frame; the
+    `_db` is underscore-prefixed so the web server does not hash the 7.7 MB frame; the
     cache key is just (sample_size, seed, fr_tol_pct).
     """
     db = _db
@@ -954,10 +941,10 @@ def run_inverse_self_test(db, fwd, s_geo, s_perf, per_family=3, fast_mode=True):
 def run_startup_healthcheck(_db, _fwd, _s_geo, _s_perf):
     """Boot sanity check. Cached for the life of the process.
 
-    It used to run on EVERY Streamlit rerun -- a full model.predict() (measured
+    It used to run on EVERY request cycle -- a full model.predict() (measured
     ~56 ms even for a trivial graph, more for this one), two curve_columns() scans
     and a spline fit, on every slider tick. A boot check only needs to run at boot.
-    Args are underscore-prefixed so Streamlit does not try to hash a Keras model.
+    Args are underscore-prefixed so the loader does not try to hash a Keras model.
     """
     db, fwd, s_geo, s_perf = _db, _fwd, _s_geo, _s_perf
     report = {"ok": True, "checks": []}

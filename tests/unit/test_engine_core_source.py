@@ -2,8 +2,8 @@
 from pathlib import Path
 import unittest
 
-ROOT = Path(__file__).resolve().parents[1]
-CORE = ROOT / "src" / "backend" / "engine_core.py"
+ROOT = Path(__file__).resolve().parents[2]
+CORE = ROOT / "src" / "antdesigner" / "engine" / "core.py"
 
 
 class EngineCoreSourceTests(unittest.TestCase):

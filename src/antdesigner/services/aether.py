@@ -1,7 +1,7 @@
 """Server-side AETHER/Groq adapter.
 
 Conversation history remains in the browser and is sent with each request.  This
-module retains the legacy Streamlit app's model fallback order while keeping the
+module retains the configured model fallback order while keeping the
 GROQ_API_KEY entirely on the server.
 """
 from __future__ import annotations
@@ -9,7 +9,7 @@ from __future__ import annotations
 import os
 from typing import Any
 
-# Copied from the AETHER section in 10_web_app.py, in the same preference order.
+# Model preference order for server-side Groq requests.
 AETHER_MODELS = (
     "openai/gpt-oss-20b",
     "qwen/qwen3.6-27b",
@@ -22,7 +22,7 @@ AETHER_MODELS = (
 )
 
 NOT_CONFIGURED_MESSAGE = (
-    "Set GROQ_API_KEY in `.streamlit/secrets.toml` or your environment to enable "
+    "Set GROQ_API_KEY in `.env` or the server environment or your environment to enable "
     "AETHER Assistant."
 )
 
@@ -36,8 +36,7 @@ def complete(messages: list[dict[str, str]], preferred_model: str | None = None)
     """Request a chat completion using the legacy fallback order.
 
     No user content is logged.  The returned model identifier lets the browser send
-    it back as ``preferred_model`` on its next request, matching the Streamlit
-    session's "last working model first" behavior without retaining conversations on
+    it back as ``preferred_model`` on its next request, matching the browser's "last working model first" behavior without retaining conversations on
     the server.
     """
     api_key = os.getenv("GROQ_API_KEY", "").strip()
@@ -85,7 +84,7 @@ def complete(messages: list[dict[str, str]], preferred_model: str | None = None)
             return {
                 "status": "invalid_key",
                 "reply": (
-                    "Invalid Groq API key. In Streamlit/fly.io secrets set `GROQ_API_KEY` "
+                    "Invalid Groq API key. In Fly.io secrets set `GROQ_API_KEY` "
                     "to a valid key from console.groq.com/keys."
                 ),
                 "model": None,
