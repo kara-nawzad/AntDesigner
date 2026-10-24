@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from antdesigner.services import aether
+from antdesigner.services import hertz
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_DIR = PROJECT_ROOT / "web"
@@ -125,13 +125,13 @@ class CompareVisualRequest(BaseModel):
     entries: list[CompareEntry] = Field(min_length=2, max_length=6)
 
 
-class AetherMessage(BaseModel):
+class HertzMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=8000)
 
 
-class AetherRequest(BaseModel):
-    messages: list[AetherMessage] = Field(min_length=1, max_length=40)
+class HertzRequest(BaseModel):
+    messages: list[HertzMessage] = Field(min_length=1, max_length=40)
     preferred_model: str | None = Field(default=None, max_length=120)
 
 
@@ -285,7 +285,7 @@ class EngineManager:
                 "model_loaded": bool(fwd is not None),
                 "dip_specialist_loaded": bool(dip_specialist is not None),
                 "rows": int(len(db)) if db is not None else 0,
-                "aether_configured": aether.configured(),
+                "hertz_configured": hertz.configured(),
                 "startup_health": json_safe(self._startup_health),
                 "message": self._error if self._status == "error" else None,
                 "versions": {
@@ -756,12 +756,12 @@ def data_story() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="The CST data story is unavailable.") from exc
 
 
-@app.post("/api/aether")
-def aether_chat(payload: AetherRequest) -> dict[str, Any]:
+@app.post("/api/hertz")
+def hertz_chat(payload: HertzRequest) -> dict[str, Any]:
     messages = [{"role": message.role, "content": message.content.strip()} for message in payload.messages]
     if any(not message["content"] for message in messages):
-        raise HTTPException(status_code=422, detail="AETHER messages cannot be empty.")
-    return aether.complete(messages, payload.preferred_model)
+        raise HTTPException(status_code=422, detail="Hertz messages cannot be empty.")
+    return hertz.complete(messages, payload.preferred_model)
 
 
 def _new_validation_job(kind: str, work: Callable[[Any, tuple[Any, Any, Any, Any, Any, Any]], tuple[Any, str | None]]) -> dict[str, Any]:

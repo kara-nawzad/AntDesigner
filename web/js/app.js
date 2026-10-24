@@ -3,7 +3,7 @@
 
   const $ = (selector, root = document) => root.querySelector(selector);
   const $$ = (selector, root = document) => Array.from(root.querySelectorAll(selector));
-  const TAB_IDS = ['home', 'fwd', 'inv', 'aeth', 'meth'];
+  const TAB_IDS = ['home', 'fwd', 'inv', 'hertz', 'meth'];
   const ENGINE_DEPENDENT_SELECTORS = ['#fwd-run', '#inv-run', '#self-test-run', '#ab-test-run', '#inverse-test-run', '#healthcheck-run', '#data-story-load'];
   const REDUCED_MOTION = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
   const state = {
@@ -13,8 +13,8 @@
     forward: null,
     inverse: null,
     comparison: [],
-    aetherMessages: [],
-    aetherModel: null,
+    hertzMessages: [{ role: 'assistant', content: "Hi, I'm Hertz. Ask me about antenna design, parameters, or your results." }],
+    hertzModel: null,
     designSpaceLoadedFor: null,
   };
 
@@ -106,6 +106,12 @@
 
   function tabFromHash() {
     const requested = window.location.hash.replace('#', '').trim();
+    // Legacy hash redirect: #aeth -> #hertz
+    if (requested === 'aeth') {
+      if (history.replaceState) history.replaceState(null, '', '#hertz');
+      else window.location.hash = 'hertz';
+      return 'hertz';
+    }
     return TAB_IDS.includes(requested) ? requested : 'home';
   }
 
@@ -248,15 +254,15 @@
         setEngineDependentDisabled(true);
       }
 
-      const aetherNotice = $('#aether-not-configured');
-      const form = $('#aether-form');
-      if (!health.aether_configured) {
-        aetherNotice.hidden = false;
-        aetherNotice.textContent = 'Set GROQ_API_KEY in the server environment to enable AETHER Assistant.';
+      const hertzNotice = $('#hertz-not-configured');
+      const form = $('#hertz-form');
+      if (!health.hertz_configured) {
+        hertzNotice.hidden = false;
+        hertzNotice.textContent = 'Set GROQ_API_KEY in the server environment to enable Hertz Assistant.';
         $('textarea', form).disabled = true;
         $('button', form).disabled = true;
       } else {
-        aetherNotice.hidden = true;
+        hertzNotice.hidden = true;
         $('textarea', form).disabled = false;
         $('button', form).disabled = false;
       }
@@ -645,39 +651,39 @@
     return safe.replace(/\n/g, '<br>');
   }
 
-  function renderAether() {
-    const container = $('#aether-messages');
-    if (!state.aetherMessages.length) {
+  function renderHertz() {
+    const container = $('#hertz-messages');
+    if (!state.hertzMessages.length) {
       container.innerHTML = '<div class="chat-empty"><p class="serif">Ask about antenna design, parameters, result interpretation, or the project method.</p></div>';
       return;
     }
-    container.innerHTML = state.aetherMessages.map((message) => `<article class="message ${message.role}"><span class="role">${message.role === 'user' ? 'You' : 'AETHER'}</span><p>${safeMarkdown(message.content)}</p></article>`).join('');
+    container.innerHTML = state.hertzMessages.map((message) => `<article class="message ${message.role}"><span class="role">${message.role === 'user' ? 'You' : 'HERTZ'}</span><p>${safeMarkdown(message.content)}</p></article>`).join('');
     container.scrollTop = container.scrollHeight;
   }
 
-  function bindAether() {
-    $('#aether-form').addEventListener('submit', async (event) => {
+  function bindHertz() {
+    $('#hertz-form').addEventListener('submit', async (event) => {
       event.preventDefault();
-      if (!state.health?.aether_configured) return;
-      const input = $('#aether-input');
+      if (!state.health?.hertz_configured) return;
+      const input = $('#hertz-input');
       const content = input.value.trim();
       if (!content) return;
-      state.aetherMessages.push({ role: 'user', content });
+      state.hertzMessages.push({ role: 'user', content });
       input.value = '';
-      renderAether();
-      const button = $('#aether-form button');
+      renderHertz();
+      const button = $('#hertz-form button');
       setButtonBusy(button, true, 'Thinking…');
       try {
-        const response = await api('/api/aether', {
+        const response = await api('/api/hertz', {
           method: 'POST',
-          body: { messages: state.aetherMessages, preferred_model: state.aetherModel },
+          body: { messages: state.hertzMessages, preferred_model: state.hertzModel },
         });
-        if (response.model) state.aetherModel = response.model;
-        state.aetherMessages.push({ role: 'assistant', content: response.reply || 'AETHER did not return a reply.' });
+        if (response.model) state.hertzModel = response.model;
+        state.hertzMessages.push({ role: 'assistant', content: response.reply || 'Hertz did not return a reply.' });
       } catch (error) {
-        state.aetherMessages.push({ role: 'assistant', content: `AETHER request failed: ${error.message}` });
+        state.hertzMessages.push({ role: 'assistant', content: `Hertz request failed: ${error.message}` });
       } finally {
-        renderAether();
+        renderHertz();
         setButtonBusy(button, false);
       }
     });
@@ -823,10 +829,10 @@
     observeRevealElements();
     bindForwardControls();
     bindInverseControls();
-    bindAether();
+    bindHertz();
     bindDataStory();
     bindValidation();
-    renderAether();
+    renderHertz();
     try {
       await loadMeta();
     } catch (error) {

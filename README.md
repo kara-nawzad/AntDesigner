@@ -12,7 +12,7 @@ FastAPI workbench for forward and inverse synthesis of coplanar-waveguide-fed pa
 - Forward performance prediction from antenna shape and patch dimensions.
 - Inverse geometry search for target resonant frequency, shape family, and priority.
 - Interactive response, comparison, 3D antenna, design-space, and validation views.
-- Optional AETHER chat assistant through Groq (server-side key only).
+- Optional Hertz chat assistant through Groq (server-side key only).
 - Health endpoint at `/health`.
 
 The production API constrains Lp and Wp to 10–35 mm, the documented CST-backed domain. This repository does not train the model.
@@ -26,7 +26,7 @@ src/antdesigner/
 ├── api/main.py                 FastAPI app and HTTP routes
 ├── engine/core.py              scientific prediction and validation paths
 ├── engine/model_v2.py          trained-model inference helper
-├── services/aether.py          optional Groq adapter
+├── services/hertz.py           optional Groq adapter
 └── visualization/              Plotly and antenna geometry helpers
 web/                            static UI, fonts, and Plotly.js
 assets/                         images served at /assets/
@@ -89,7 +89,7 @@ For live checks of both the Fly URL and custom domain, see [docs/deployment.md](
 
 | Variable | Purpose | Default / expected value |
 |---|---|---|
-| `GROQ_API_KEY` | Enables AETHER chat; server-side secret only | unset (feature disabled) |
+| `GROQ_API_KEY` | Enables Hertz chat; server-side secret only | unset (feature disabled) |
 | `HF_REPO` | Hugging Face repo containing model and data | `kara-nawzad/antenna-models` |
 | `PORT` | Container/service port | `8080` |
 | `TF_NUM_INTRAOP_THREADS` | TensorFlow intra-op threads | `1` in Docker |

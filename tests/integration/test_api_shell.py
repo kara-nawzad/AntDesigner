@@ -50,7 +50,7 @@ class ApiShellTests(unittest.TestCase):
         payload = response.json()
         self.assertIn(payload["status"], {"warming", "error", "ok"})
         self.assertIn("engine_ready", payload)
-        self.assertIn("aether_configured", payload)
+        self.assertIn("hertz_configured", payload)
 
     def test_meta_exposes_all_current_shapes_and_inverse_options(self) -> None:
         response = self.client.get("/api/meta")
@@ -273,9 +273,9 @@ class ApiShellTests(unittest.TestCase):
         self.assertEqual(logo.status_code, 200)
         self.assertEqual(logo.headers.get("content-type"), "image/png")
 
-    def test_aether_without_a_key_returns_the_legacy_info_message(self) -> None:
+    def test_hertz_without_a_key_returns_the_legacy_info_message(self) -> None:
         with patch.dict(os.environ, {"GROQ_API_KEY": ""}, clear=False):
-            response = self.client.post("/api/aether", json={"messages": [{"role": "user", "content": "Hello"}]})
+            response = self.client.post("/api/hertz", json={"messages": [{"role": "user", "content": "Hello"}]})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "not_configured")
