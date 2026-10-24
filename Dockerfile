@@ -1,3 +1,4 @@
+# syntax=docker/dockerfile:1.4
 FROM python:3.11-slim
 
 RUN apt-get update && apt-get install -y --no-install-recommends build-essential libgomp1 curl \
@@ -24,28 +25,23 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY web/ ./web/
 COPY assets/ ./assets/
+COPY scripts/fetch_hf_assets.py ./fetch_hf_assets.py
 
 COPY scaler_geo.pkl scaler_perf.pkl ./
-
-# Fail before a long model download if the two required small scalers were copied
-# as Git-LFS pointer text rather than their real pickle bytes.
-RUN python -c "import sys; \
-bad=[p for p in ('scaler_geo.pkl','scaler_perf.pkl') \
-     if open(p,'rb').read(32).startswith(b'version https://git-lfs')]; \
-sys.exit(f'ERROR: unresolved Git LFS pointer(s): {bad} -- materialize the real scaler bytes before fly deploy') if bad else None"
-
-# ---------------------------------------------------------------------------
-# Pre-fetch the main model + CST dataset at IMAGE BUILD time. A deployed machine
-# therefore does not put a 115 MB model transfer on its health-check/startup path.
-# These files are inference assets only; no model/data contents are changed.
-# ---------------------------------------------------------------------------
+# Scalers + model + CSV are fetched from HF if the local copy is a 129-byte
+# LFS pointer or missing. This lets a fresh clone deploy without materialized
+# scalers, but does NOT crash the build when HF is missing a file — it just
+# prints the error and the next check will explain what to do.
 ARG HF_REPO=kara-nawzad/antenna-models
+ARG HF_REVISION=main
 ENV HF_REPO=${HF_REPO}
-RUN python -c "import os; from huggingface_hub import hf_hub_download; \
-repo=os.environ['HF_REPO']; \
-[print(f'[build] fetching {f} from {repo}') or hf_hub_download(repo_id=repo, filename=f, local_dir='.') \
- for f in ('forward_model_v2_curve.keras', 'antenna_data_cleaned.csv') \
- if not os.path.exists(f)]"
+ENV HF_REVISION=${HF_REVISION}
+RUN python fetch_hf_assets.py
+RUN python -c "import sys, os; \
+bad=[p for p in ('scaler_geo.pkl','scaler_perf.pkl','forward_model_v2_curve.keras','antenna_data_cleaned.csv') \
+     if not os.path.exists(p) or open(p,'rb').read(32).startswith(b'version https://git-lfs')]; \
+print('[build] assets present, checking...'); \
+sys.exit(f'ERROR: missing or pointer asset(s): {bad} -- upload them to HF_REPO={os.environ.get(\"HF_REPO\")}@{os.environ.get(\"HF_REVISION\")} or place real files at repo root before fly deploy') if bad else print('[build] all 4 assets present')"
 
 EXPOSE 8080
 
