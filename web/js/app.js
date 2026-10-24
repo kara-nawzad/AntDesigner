@@ -179,12 +179,19 @@
   }
 
   function bindHeroParallax() {
-    if (REDUCED_MOTION || !window.matchMedia('(pointer:fine)').matches) return;
+    const svg = document.querySelector('.art svg');
     const ridgeWrap = document.getElementById('ridge-wrap');
+    const updatePreserve = () => {
+      if (!svg) return;
+      svg.setAttribute('preserveAspectRatio', window.innerWidth < 760 ? 'xMidYMax meet' : 'xMaxYMax slice');
+    };
+    updatePreserve();
+    window.addEventListener('resize', updatePreserve, { passive: true });
+    if (REDUCED_MOTION || !window.matchMedia('(pointer:fine)').matches) return;
     if (!ridgeWrap) return;
     document.addEventListener('pointermove', (event) => {
       const x = event.clientX / window.innerWidth - 0.5;
-      ridgeWrap.style.transform = `translateX(${x * -14}px)`;
+      ridgeWrap.style.transform = `translateX(${x * -6}px)`;
     }, { passive: true });
   }
 

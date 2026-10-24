@@ -291,6 +291,7 @@ count();
 const _origSVG = document.getElementById('st').innerHTML;
 document.getElementById('rp').onclick=()=>{{
   const st=document.getElementById('st');
+  st.style.transform='';
   st.innerHTML='';
   void st.offsetWidth;
   st.innerHTML=_origSVG;
