@@ -25,6 +25,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 COPY src/ ./src/
 COPY web/ ./web/
 COPY assets/ ./assets/
+COPY scripts/fetch_hf_assets.py ./fetch_hf_assets.py
 
 COPY scaler_geo.pkl scaler_perf.pkl ./
 # Scalers + model + CSV are fetched from HF if the local copy is a 129-byte
@@ -35,29 +36,7 @@ ARG HF_REPO=kara-nawzad/antenna-models
 ARG HF_REVISION=main
 ENV HF_REPO=${HF_REPO}
 ENV HF_REVISION=${HF_REVISION}
-RUN python << 'PY'
-import os
-from huggingface_hub import hf_hub_download
-repo = os.environ['HF_REPO']
-rev = os.environ['HF_REVISION']
-def need(p):
-    if not os.path.exists(p):
-        return True
-    try:
-        with open(p, 'rb') as fh:
-            head = fh.read(32)
-            return head.startswith(b'version https://git-lfs')
-    except Exception:
-        return True
-for f in ('scaler_geo.pkl','scaler_perf.pkl','forward_model_v2_curve.keras','antenna_data_cleaned.csv'):
-    if need(f):
-        try:
-            print(f'[build] fetching {f} from {repo}@{rev}')
-            hf_hub_download(repo_id=repo, filename=f, revision=rev, local_dir='.')
-            print(f'[build] fetched {f}')
-        except Exception as e:
-            print(f'[build] could not fetch {f} from HF: {e}')
-PY
+RUN python fetch_hf_assets.py
 RUN python -c "import sys, os; \
 bad=[p for p in ('scaler_geo.pkl','scaler_perf.pkl','forward_model_v2_curve.keras','antenna_data_cleaned.csv') \
      if not os.path.exists(p) or open(p,'rb').read(32).startswith(b'version https://git-lfs')]; \
