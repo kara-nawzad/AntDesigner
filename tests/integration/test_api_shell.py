@@ -93,7 +93,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": shape_id, "Lp": 34.8, "Wp": 18.0, "fr (GHz)": 3.5}
             for shape_id in (1, 2, 3)
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(OutsideRangeCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -126,7 +126,7 @@ class ApiShellTests(unittest.TestCase):
                 return None
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(NoBoundedCandidateCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -160,7 +160,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": 1, "Lp": 5.0, "Wp": 5.0, "fr (GHz)": 3.5},
             {"Antenna_ID": 1, "Lp": 20.0, "Wp": 20.0, "fr (GHz)": 3.51},
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(InDomainAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -192,7 +192,7 @@ class ApiShellTests(unittest.TestCase):
             # A second bounded near-target CST row has the actual working match.
             {"Antenna_ID": 1, "Lp": 30.0, "Wp": 20.0, "fr (GHz)": 3.52},
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(TiedAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -220,7 +220,7 @@ class ApiShellTests(unittest.TestCase):
                 return {"fr": 3.036, "gain": 1.0, "bw": 0.2, "status": "WORKING"}
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 10.0, "Wp": 10.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(PoorMatchCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -248,7 +248,7 @@ class ApiShellTests(unittest.TestCase):
                 return {"fr": 3.5, "gain": 4.0, "bw": 0.2, "status": "NOT WORKING"}
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(NonWorkingCore(), resources)):
             response = self.client.post(
                 "/api/inverse",

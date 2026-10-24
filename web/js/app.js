@@ -234,14 +234,12 @@
       state.health = health;
       $('#engine-rows').textContent = health.engine_ready ? `${Number(health.rows).toLocaleString()} rows` : '—';
       $('#engine-model').textContent = health.engine_ready ? formatBooleanLoaded(health.model_loaded) : 'warming';
-      $('#engine-specialist').textContent = health.engine_ready ? formatBooleanLoaded(health.dip_specialist_loaded) : 'warming';
+      $('#engine-specialist').textContent = health.engine_ready ? 'CST + main brain' : 'warming';
       $('#engine-blending').textContent = 'aligned';
 
       const note = $('#engine-method-note');
       if (health.engine_ready) {
-        note.textContent = health.dip_specialist_loaded
-          ? 'The current engine is ready. Labels report which loaded components actually contribute to a run.'
-          : 'The dip specialist (`s11_dip_specialist.pkl`) is not present in the model repo, so the engine runs the main brain only. Predictions are produced by interpolating the CST dataset; the surrogate is used only as a fallback or when Use ML refinement is enabled. Labels in this app report that accurately.';
+        note.textContent = 'The engine is ready (CST interpolation + main Keras surrogate). The dip specialist has been removed — predictions use CST anchoring with the main brain as fallback / neural refinement. Labels report the actual method used.';
         setEngineBanner('');
         setEngineDependentDisabled(false);
       } else if (health.status === 'error') {

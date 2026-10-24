@@ -200,17 +200,16 @@ def load_brains():
     except Exception as e:
         print(f"[WARN] Could not load Keras model: {e}")
 
-    # --- V2 forward model (dip-weighted, optional) ---
+    # --- V2 forward model (main brain only, dip specialist removed) ---
     v2_fwd = None
-    v2_dip_specialist = None
     if HAS_V2:
         try:
             reusable = fwd if (fwd is not None and fwd_path == "forward_model_v2_curve.keras") else None
-            v2_fwd, v2_dip_specialist, s_geo, s_perf, _ = engine_v2.load_v2_engines(main_model=reusable)
+            v2_fwd, _, s_geo, s_perf, _ = engine_v2.load_v2_engines(main_model=reusable)
         except Exception as e:
             print(f"[WARN] V2 engine not loaded: {e}")
 
-    return fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist
+    return fwd, s_geo, s_perf, v2_fwd
 
 @lru_cache(maxsize=1)
 def load_data():
@@ -570,21 +569,18 @@ def forward_physics_first(lp, wp, shape_id, fwd, s_geo, s_perf, db, use_ml_refin
     return mixed
 
 
-def forward_physics_first_v2(lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf, db,
+def forward_physics_first_v2(lp, wp, shape_id, v2_fwd, s_geo, s_perf, db,
                               use_ml_refine=False, blend_window_mhz=50, anchor_strength=1.0):
-    """Two-Brain 2.0: CSV anchoring as primary, specialist as dip enhancer."""
+    """CSV anchoring as primary, main brain as fallback (dip specialist removed)."""
     # Get CSV anchor data first (this is the ground truth)
     anc = forward_anchor(lp, wp, shape_id, db)
 
     if anc is None:
         # No CSV anchor available — pure model prediction
-        ml = engine_v2.forward_v2(lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf,
-                                   use_anchor=True, blend_window_mhz=blend_window_mhz,
+        ml = engine_v2.forward_v2(lp, wp, shape_id, v2_fwd, None, s_geo, s_perf,
+                                   use_anchor=False, blend_window_mhz=blend_window_mhz,
                                    anchor_strength=anchor_strength)
-        # Report which brains actually fired. Labeling this "Two-Brain 2.0" when the
-        # specialist pickle is missing is how the UI came to overstate the method.
-        ml["engine"] = ("Two-Brain 2.0 (no CSV anchor)" if ml.get("used_specialist")
-                        else "Main brain only (no CSV anchor)")
+        ml["engine"] = "Main brain only (no CSV anchor)"
         return ml
 
     # We have CSV data — use it as the base (CSV is ground truth)
@@ -619,21 +615,17 @@ def forward_physics_first_v2(lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf, db
             "engine": f'{anc.get("anchor_mode", "CSV")}-anchored',
         }
     else:
-        # Far from CSV data — use specialist to enhance dip prediction
+        # Far from CSV data — specialist removed, now pure CSV-only
         result = engine_v2.forward_v2_with_csv_anchor(
-            lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf,
+            lp, wp, shape_id, v2_fwd, None, s_geo, s_perf,
             csv_curve=csv_curve, csv_f_axis=f_axis,
-            use_anchor=True, blend_window_mhz=blend_window_mhz,
+            use_anchor=False, blend_window_mhz=blend_window_mhz,
             anchor_strength=anchor_strength
         )
         result["gain"] = _interp_perf("gain", "Gain_at_fr")
         result["eff"] = _interp_perf("eff", "Eff_at_fr")
-        # This string used to be hardcoded to "CSV-bilinear + Two-Brain 2.0 specialist"
-        # regardless of whether the specialist existed or contributed anything. It now
-        # reports what actually ran, so the UI cannot claim a method it did not use.
         _mode = anc.get("anchor_mode", "CSV")
-        result["engine"] = (f"{_mode} + dip specialist" if result.get("used_specialist")
-                            else f"{_mode} (CST interpolation only)")
+        result["engine"] = f"{_mode} (CST interpolation only)"
 
         # --- Neural refinement (previously a dead parameter in this branch) ---
         # Only meaningful beyond the 0.6 mm CST-exact radius, which is exactly the
@@ -641,7 +633,7 @@ def forward_physics_first_v2(lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf, db
         # matching the weighting already used by forward_best() on the v1 path.
         if use_ml_refine and v2_fwd is not None:
             ml = engine_v2.forward_v2(
-                lp, wp, shape_id, v2_fwd, v2_dip, s_geo, s_perf,
+                lp, wp, shape_id, v2_fwd, None, s_geo, s_perf,
                 use_anchor=False, verbose=0,
             )
             if len(ml["c"]) == len(result["c"]):
