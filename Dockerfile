@@ -25,27 +25,23 @@ COPY src/ ./src/
 COPY web/ ./web/
 COPY assets/ ./assets/
 
-COPY scaler_geo.pkl scaler_perf.pkl ./
-
-# Fail before a long model download if the two required small scalers were copied
-# as Git-LFS pointer text rather than their real pickle bytes.
-RUN python -c "import sys; \
-bad=[p for p in ('scaler_geo.pkl','scaler_perf.pkl') \
-     if open(p,'rb').read(32).startswith(b'version https://git-lfs')]; \
-sys.exit(f'ERROR: unresolved Git LFS pointer(s): {bad} -- materialize the real scaler bytes before fly deploy') if bad else None"
-
-# ---------------------------------------------------------------------------
-# Pre-fetch the main model + CST dataset at IMAGE BUILD time. A deployed machine
-# therefore does not put a 115 MB model transfer on its health-check/startup path.
-# These files are inference assets only; no model/data contents are changed.
-# ---------------------------------------------------------------------------
+# Small scalers are now fetched from HF like the model/CSV so a fresh
+# clone does NOT need local scaler_geo.pkl/scaler_perf.pkl. If those files
+# already exist in the build context they are kept, otherwise they are
+# downloaded. This removes the 129-byte LFS pointer failure.
 ARG HF_REPO=kara-nawzad/antenna-models
+ARG HF_REVISION=main
 ENV HF_REPO=${HF_REPO}
+ENV HF_REVISION=${HF_REVISION}
 RUN python -c "import os; from huggingface_hub import hf_hub_download; \
-repo=os.environ['HF_REPO']; \
-[print(f'[build] fetching {f} from {repo}') or hf_hub_download(repo_id=repo, filename=f, local_dir='.') \
- for f in ('forward_model_v2_curve.keras', 'antenna_data_cleaned.csv') \
+repo=os.environ['HF_REPO']; rev=os.environ['HF_REVISION']; \
+[print(f'[build] fetching {f} from {repo}@{rev}') or hf_hub_download(repo_id=repo, filename=f, revision=rev, local_dir='.') \
+ for f in ('scaler_geo.pkl','scaler_perf.pkl','forward_model_v2_curve.keras','antenna_data_cleaned.csv') \
  if not os.path.exists(f)]"
+RUN python -c "import sys; \
+bad=[p for p in ('scaler_geo.pkl','scaler_perf.pkl','forward_model_v2_curve.keras','antenna_data_cleaned.csv') \
+     if not __import__('os').path.exists(p) or open(p,'rb').read(32).startswith(b'version https://git-lfs')]; \
+sys.exit(f'ERROR: missing or pointer asset(s): {bad} -- ensure HF_REPO={__import__(\"os\").environ.get(\"HF_REPO\")} contains them at revision {__import__(\"os\").environ.get(\"HF_REVISION\")}') if bad else print('[build] all 4 assets present')"
 
 EXPOSE 8080
 
