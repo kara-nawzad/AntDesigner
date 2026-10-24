@@ -2,7 +2,7 @@
 
 FastAPI workbench for forward and inverse synthesis of coplanar-waveguide-fed patch antennas, based on CST simulation data and an existing trained surrogate. The browser UI and API are served from the same origin.
 
-- **Live on this link:** https://karanawzad.tech/AntDesigner/
+- **Now live at:** https://karanawzad.tech/AntDesigner/
 - **Repository:** https://github.com/kara-nawzad/AntDesigner
 - **License:** MIT; see [LICENSE](LICENSE).
 
