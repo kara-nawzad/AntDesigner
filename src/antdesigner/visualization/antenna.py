@@ -261,8 +261,6 @@ html,body{{margin:0;height:100%;background:transparent;font-family:Inter,system-
 svg{{height:92%;max-width:96%;overflow:visible}}
 .cap{{position:absolute;left:18px;top:14px;color:#14213D;font:500 16px Fraunces,Georgia,serif}}.cap small{{display:block;color:#5B6478;font:11px Inter;letter-spacing:.14em;text-transform:uppercase;margin-bottom:4px}}
 .ill{{position:absolute;right:16px;bottom:12px;color:#5B6478;font-size:11px;opacity:.8}}
-.rp{{position:absolute;right:14px;top:12px;background:rgba(20,33,61,.04);color:#14213D;border:1px solid rgba(20,33,61,.18);border-radius:999px;padding:6px 12px;font:12px Inter;cursor:pointer}}
-.rp:hover{{border-color:#6366F1}}
 .grid path{{stroke:rgba(20,33,61,.08);stroke-width:.6;fill:none;opacity:0;animation:fi 1s .1s forwards}}
 .sub{{fill:#EFEAD9;fill-opacity:0;stroke:rgba(20,33,61,.5);stroke-width:1.2;stroke-dasharray:1;stroke-dashoffset:1;animation:dr 1.3s .3s forwards,fillin .8s 1s forwards}}
 .gnd{{fill:rgba(20,33,61,.12);stroke:#14213D;stroke-width:1.1;opacity:0;transform:translateX(var(--dx));animation:slide .8s var(--d) cubic-bezier(.22,.8,.3,1) forwards}}
@@ -279,7 +277,6 @@ svg{{height:92%;max-width:96%;overflow:visible}}
 @keyframes ring{{0%{{opacity:.55;transform:scale(1)}}100%{{opacity:0;transform:scale(11)}}}}
 @media(prefers-reduced-motion:reduce){{*{{animation-duration:.01ms!important;animation-delay:0s!important;animation-iteration-count:1!important}}.ring,.flow{{display:none}}}}
 </style></head><body><div class="card" id="c"><div class="cap"><small>Predicted geometry</small>{title}</div>
-<button class="rp" id="rp" aria-label="Replay animation">&#8635; Replay</button>
 <div class="stage" id="st"><svg id="s" viewBox="0 0 480 560" role="img" aria-label="{title}: patch length {lp} mm, patch width {wp} mm">
 <g class="grid">{grid}</g><g>{rings}</g>{sub}{grounds}{feed}{patch}<path class="flow" pathLength="1" d="{flow}"/>{dims}</svg></div>
 <div class="ill">Rings are illustrative, not a field simulation</div></div>
@@ -288,16 +285,6 @@ const rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function count(){{document.querySelectorAll('.cnt').forEach(e=>{{const v=+e.dataset.v,t0=performance.now()+(rm?-9999:2900);
 (function f(n){{const k=Math.min(Math.max((n-t0)/900,0),1),q=1-Math.pow(1-k,3);e.textContent=(v*q).toFixed(2);if(k<1)requestAnimationFrame(f)}})(performance.now())}})}}
 count();
-const _origSVG = document.getElementById('st').innerHTML;
-document.getElementById('rp').onclick=()=>{{
-  const st=document.getElementById('st');
-  st.style.transform='';
-  st.innerHTML='';
-  void st.offsetWidth;
-  st.innerHTML=_origSVG;
-  void st.offsetWidth;
-  count();
-}};
 const st=document.getElementById('st');
 if(!rm&&matchMedia('(pointer:fine)').matches)document.getElementById('c').addEventListener('pointermove',e=>{{const r=e.currentTarget.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;st.style.transform='rotateY('+(x*14)+'deg) rotateX('+(-y*10)+'deg)'}});
 document.getElementById('c').addEventListener('pointerleave',()=>st.style.transform='');
