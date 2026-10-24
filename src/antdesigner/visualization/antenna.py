@@ -288,7 +288,15 @@ const rm=matchMedia('(prefers-reduced-motion: reduce)').matches;
 function count(){{document.querySelectorAll('.cnt').forEach(e=>{{const v=+e.dataset.v,t0=performance.now()+(rm?-9999:2900);
 (function f(n){{const k=Math.min(Math.max((n-t0)/900,0),1),q=1-Math.pow(1-k,3);e.textContent=(v*q).toFixed(2);if(k<1)requestAnimationFrame(f)}})(performance.now())}})}}
 count();
-document.getElementById('rp').onclick=()=>{{const s=document.getElementById('s'),p=s.parentNode;const n=s.cloneNode(true);p.replaceChild(n,s);n.id='s';count()}};
+const _origSVG = document.getElementById('st').innerHTML;
+document.getElementById('rp').onclick=()=>{{
+  const st=document.getElementById('st');
+  st.innerHTML='';
+  void st.offsetWidth;
+  st.innerHTML=_origSVG;
+  void st.offsetWidth;
+  count();
+}};
 const st=document.getElementById('st');
 if(!rm&&matchMedia('(pointer:fine)').matches)document.getElementById('c').addEventListener('pointermove',e=>{{const r=e.currentTarget.getBoundingClientRect(),x=(e.clientX-r.left)/r.width-.5,y=(e.clientY-r.top)/r.height-.5;st.style.transform='rotateY('+(x*14)+'deg) rotateX('+(-y*10)+'deg)'}});
 document.getElementById('c').addEventListener('pointerleave',()=>st.style.transform='');

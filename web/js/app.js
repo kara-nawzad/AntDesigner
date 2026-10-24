@@ -180,11 +180,11 @@
 
   function bindHeroParallax() {
     if (REDUCED_MOTION || !window.matchMedia('(pointer:fine)').matches) return;
+    const ridgeWrap = document.getElementById('ridge-wrap');
+    if (!ridgeWrap) return;
     document.addEventListener('pointermove', (event) => {
       const x = event.clientX / window.innerWidth - 0.5;
-      $$('.rl').forEach((ridge, index) => {
-        ridge.parentNode.style.transform = `translateX(${x * -14 * (index + 1)}px)`;
-      });
+      ridgeWrap.style.transform = `translateX(${x * -14}px)`;
     }, { passive: true });
   }
 

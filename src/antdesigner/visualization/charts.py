@@ -286,8 +286,9 @@ def patch_3d_fig(antenna_id, lp, wp, shape_label=""):
         x=r0 * float(np.cos(a0 + 2 * np.pi * k / 90)), y=r0 * float(np.sin(a0 + 2 * np.pi * k / 90)), z=z0))))
         for k in range(90)]
     fig.update_layout(updatemenus=[dict(
-        type="buttons", showactive=False, x=0.02, y=0.04, xanchor="left", yanchor="bottom",
-        bgcolor="rgba(17,22,36,0.9)", bordercolor="#6366F1", font=dict(color=TEXT, size=12),
+        type="buttons", direction="left", showactive=False, x=0.98, y=0.04, xanchor="right", yanchor="bottom",
+        bgcolor="rgba(255,253,248,0.96)", bordercolor="rgba(20,33,61,.18)", borderwidth=1,
+        font=dict(color=TEXT, size=12), pad=dict(r=8, t=6, b=6, l=8),
         buttons=[
             dict(label="Orbit", method="animate", args=[None, dict(
                 frame=dict(duration=45, redraw=True), transition=dict(duration=0),
