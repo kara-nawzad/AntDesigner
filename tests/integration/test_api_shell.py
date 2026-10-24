@@ -50,7 +50,7 @@ class ApiShellTests(unittest.TestCase):
         payload = response.json()
         self.assertIn(payload["status"], {"warming", "error", "ok"})
         self.assertIn("engine_ready", payload)
-        self.assertIn("aether_configured", payload)
+        self.assertIn("hertz_configured", payload)
 
     def test_meta_exposes_all_current_shapes_and_inverse_options(self) -> None:
         response = self.client.get("/api/meta")
@@ -93,7 +93,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": shape_id, "Lp": 34.8, "Wp": 18.0, "fr (GHz)": 3.5}
             for shape_id in (1, 2, 3)
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(OutsideRangeCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -126,7 +126,7 @@ class ApiShellTests(unittest.TestCase):
                 return None
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(NoBoundedCandidateCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -160,7 +160,7 @@ class ApiShellTests(unittest.TestCase):
             {"Antenna_ID": 1, "Lp": 5.0, "Wp": 5.0, "fr (GHz)": 3.5},
             {"Antenna_ID": 1, "Lp": 20.0, "Wp": 20.0, "fr (GHz)": 3.51},
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(InDomainAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -192,7 +192,7 @@ class ApiShellTests(unittest.TestCase):
             # A second bounded near-target CST row has the actual working match.
             {"Antenna_ID": 1, "Lp": 30.0, "Wp": 20.0, "fr (GHz)": 3.52},
         ])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(TiedAnchorCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -220,7 +220,7 @@ class ApiShellTests(unittest.TestCase):
                 return {"fr": 3.036, "gain": 1.0, "bw": 0.2, "status": "WORKING"}
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 10.0, "Wp": 10.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(PoorMatchCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -248,7 +248,7 @@ class ApiShellTests(unittest.TestCase):
                 return {"fr": 3.5, "gain": 4.0, "bw": 0.2, "status": "NOT WORKING"}
 
         db = pd.DataFrame([{"Antenna_ID": 1, "Lp": 20.0, "Wp": 18.0, "fr (GHz)": 3.5}])
-        resources = (None, None, None, None, None, db)
+        resources = (None, None, None, None, db)
         with patch("antdesigner.api.main.engine_manager.context", return_value=(NonWorkingCore(), resources)):
             response = self.client.post(
                 "/api/inverse",
@@ -273,9 +273,9 @@ class ApiShellTests(unittest.TestCase):
         self.assertEqual(logo.status_code, 200)
         self.assertEqual(logo.headers.get("content-type"), "image/png")
 
-    def test_aether_without_a_key_returns_the_legacy_info_message(self) -> None:
+    def test_hertz_without_a_key_returns_the_legacy_info_message(self) -> None:
         with patch.dict(os.environ, {"GROQ_API_KEY": ""}, clear=False):
-            response = self.client.post("/api/aether", json={"messages": [{"role": "user", "content": "Hello"}]})
+            response = self.client.post("/api/hertz", json={"messages": [{"role": "user", "content": "Hello"}]})
         self.assertEqual(response.status_code, 200)
         payload = response.json()
         self.assertEqual(payload["status"], "not_configured")

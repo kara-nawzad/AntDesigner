@@ -24,7 +24,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
-from antdesigner.services import aether
+from antdesigner.services import hertz
 
 PROJECT_ROOT = Path(__file__).resolve().parents[3]
 FRONTEND_DIR = PROJECT_ROOT / "web"
@@ -125,13 +125,13 @@ class CompareVisualRequest(BaseModel):
     entries: list[CompareEntry] = Field(min_length=2, max_length=6)
 
 
-class AetherMessage(BaseModel):
+class HertzMessage(BaseModel):
     role: Literal["user", "assistant"]
     content: str = Field(min_length=1, max_length=8000)
 
 
-class AetherRequest(BaseModel):
-    messages: list[AetherMessage] = Field(min_length=1, max_length=40)
+class HertzRequest(BaseModel):
+    messages: list[HertzMessage] = Field(min_length=1, max_length=40)
     preferred_model: str | None = Field(default=None, max_length=120)
 
 
@@ -214,7 +214,7 @@ class EngineManager:
         self._status = "warming"
         self._error: str | None = None
         self._core: Any | None = None
-        self._resources: tuple[Any, Any, Any, Any, Any, Any] | None = None
+        self._resources: tuple[Any, Any, Any, Any, Any] | None = None
         self._startup_health: dict[str, Any] | None = None
 
     def load_before_serving(self) -> None:
@@ -246,14 +246,14 @@ class EngineManager:
             # WORKDIR is /app; this also makes local uvicorn invocation reliable.
             os.chdir(PROJECT_ROOT)
             core = importlib.import_module("antdesigner.engine.core")
-            fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist = core.load_brains()
+            fwd, s_geo, s_perf, v2_fwd = core.load_brains()
             db = core.load_data()
             if db is None:
                 raise RuntimeError("CSV database not found after the existing loader ran.")
             startup_health = core.run_startup_healthcheck(db, fwd, s_geo, s_perf)
             with self._lock:
                 self._core = core
-                self._resources = (fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist, db)
+                self._resources = (fwd, s_geo, s_perf, v2_fwd, db)
                 self._startup_health = startup_health
                 self._status = "ready"
                 self._error = None
@@ -264,7 +264,7 @@ class EngineManager:
                 self._status = "error"
                 self._error = f"Engine initialization failed ({type(exc).__name__})."
 
-    def context(self) -> tuple[Any, tuple[Any, Any, Any, Any, Any, Any]]:
+    def context(self) -> tuple[Any, tuple[Any, Any, Any, Any, Any]]:
         with self._lock:
             if self._status != "ready" or self._core is None or self._resources is None:
                 message = "Engine is warming up. Please retry shortly."
@@ -275,17 +275,16 @@ class EngineManager:
 
     def health(self) -> dict[str, Any]:
         with self._lock:
-            fwd = v2_fwd = dip_specialist = db = None
+            fwd = v2_fwd = db = None
             if self._resources is not None:
-                fwd, _, _, v2_fwd, dip_specialist, db = self._resources
+                fwd, _, _, v2_fwd, db = self._resources
             return {
                 "status": "ok" if self._status == "ready" else self._status,
                 "engine_ready": self._status == "ready",
                 "v2_loaded": bool(v2_fwd is not None),
                 "model_loaded": bool(fwd is not None),
-                "dip_specialist_loaded": bool(dip_specialist is not None),
                 "rows": int(len(db)) if db is not None else 0,
-                "aether_configured": aether.configured(),
+                "hertz_configured": hertz.configured(),
                 "startup_health": json_safe(self._startup_health),
                 "message": self._error if self._status == "error" else None,
                 "versions": {
@@ -446,7 +445,7 @@ def _neural_note(result: dict[str, Any], requested: bool) -> str:
 def forward(payload: ForwardRequest) -> dict[str, Any]:
     lp, wp = _validate_shape_and_dimensions(payload.shape_id, payload.lp, payload.wp)
     core, resources = engine_manager.context()
-    fwd, s_geo, s_perf, v2_fwd, v2_dip_specialist, db = resources
+    fwd, s_geo, s_perf, v2_fwd, db = resources
 
     # This is the exact branch used by the legacy Forward button.
     use_v2 = v2_fwd is not None
@@ -456,7 +455,6 @@ def forward(payload: ForwardRequest) -> dict[str, Any]:
             wp,
             payload.shape_id,
             v2_fwd,
-            v2_dip_specialist,
             s_geo,
             s_perf,
             db,
@@ -617,7 +615,7 @@ def inverse(payload: InverseRequest) -> dict[str, Any]:
         raise HTTPException(status_code=422, detail="Unknown optimization priority.")
 
     core, resources = engine_manager.context()
-    fwd, s_geo, s_perf, _, _, db = resources
+    fwd, s_geo, s_perf, _, db = resources
     best = core.run_inverse_solver(target_fr, payload.family, payload.priority, fwd, s_geo, s_perf, db)
     if best is None:
         raise HTTPException(status_code=422, detail="No valid inverse-design candidate was found.")
@@ -756,12 +754,12 @@ def data_story() -> dict[str, Any]:
         raise HTTPException(status_code=503, detail="The CST data story is unavailable.") from exc
 
 
-@app.post("/api/aether")
-def aether_chat(payload: AetherRequest) -> dict[str, Any]:
+@app.post("/api/hertz")
+def hertz_chat(payload: HertzRequest) -> dict[str, Any]:
     messages = [{"role": message.role, "content": message.content.strip()} for message in payload.messages]
     if any(not message["content"] for message in messages):
-        raise HTTPException(status_code=422, detail="AETHER messages cannot be empty.")
-    return aether.complete(messages, payload.preferred_model)
+        raise HTTPException(status_code=422, detail="Hertz messages cannot be empty.")
+    return hertz.complete(messages, payload.preferred_model)
 
 
 def _new_validation_job(kind: str, work: Callable[[Any, tuple[Any, Any, Any, Any, Any, Any]], tuple[Any, str | None]]) -> dict[str, Any]:
@@ -772,7 +770,7 @@ def _new_validation_job(kind: str, work: Callable[[Any, tuple[Any, Any, Any, Any
 
 @app.post("/api/validate/self-test")
 def validate_self_test(payload: SelfTestRequest) -> dict[str, Any]:
-    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
+    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
         *_, db = resources
         return core.run_engine_self_test(db, sample_size=payload.sample_size), None
 
@@ -781,8 +779,8 @@ def validate_self_test(payload: SelfTestRequest) -> dict[str, Any]:
 
 @app.post("/api/validate/ab-test")
 def validate_ab_test(payload: AbTestRequest) -> dict[str, Any]:
-    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
-        fwd, s_geo, s_perf, _, _, db = resources
+    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
+        fwd, s_geo, s_perf, _, db = resources
         return core.run_engine_ab_test(db, fwd, s_geo, s_perf, sample_size=payload.sample_size), None
 
     return _new_validation_job("ab-test", work)
@@ -790,8 +788,8 @@ def validate_ab_test(payload: AbTestRequest) -> dict[str, Any]:
 
 @app.post("/api/validate/inverse-test")
 def validate_inverse_test(payload: InverseTestRequest) -> dict[str, Any]:
-    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
-        fwd, s_geo, s_perf, _, _, db = resources
+    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
+        fwd, s_geo, s_perf, _, db = resources
         summary, family_df = core.run_inverse_self_test(
             db, fwd, s_geo, s_perf, per_family=payload.per_family, fast_mode=payload.fast_mode
         )
@@ -804,8 +802,8 @@ def validate_inverse_test(payload: InverseTestRequest) -> dict[str, Any]:
 
 @app.post("/api/validate/healthcheck")
 def validate_healthcheck() -> dict[str, Any]:
-    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
-        fwd, s_geo, s_perf, _, _, db = resources
+    def work(core: Any, resources: tuple[Any, Any, Any, Any, Any]) -> tuple[Any, str | None]:
+        fwd, s_geo, s_perf, _, db = resources
         return core.run_startup_healthcheck(db, fwd, s_geo, s_perf), None
 
     return _new_validation_job("healthcheck", work)

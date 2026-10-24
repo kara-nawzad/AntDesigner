@@ -1,16 +1,19 @@
 """
-Two-Brain 2.0 - Inference engine
-================================
+Inference engine - Main brain only (dip specialist removed)
+=============================================================
 Loads:
   - forward_model_v2_curve.keras   (main brain, dip-weighted, 2 heads)
-  - s11_dip_specialist.pkl        (specialist: predicts s11_min and f_dip)
   - scaler_geo.pkl, scaler_perf.pkl
 
+The s11_dip_specialist.pkl ensemble was optional and is no longer used.
+The engine now runs CSV anchoring as primary with the main Keras brain as
+fallback / neural refinement. This removes the HF dependency on the specialist
+pickle and the "Two-Brain 2.0" labeling.
+
 Public API:
-  load_v2_engines()           -> (main_model, dip_specialist_dict, s_geo, s_perf, FREQS_RAW)
+  load_v2_engines()           -> (main_model, None, s_geo, s_perf, FREQS_RAW)
   forward_v2(...)             -> dict with fr, s11, bw, gain, eff, status, f, c, v, ...
-  predict_dip_specialist(...) -> (f_dip_ghz, s11_min_db)
-  apply_anchor_blend(...)     -> the 50-MHz window replacement of the curve
+  forward_v2_with_csv_anchor  -> CSV-anchored path (kept for compatibility, now CSV-only)
 
 Backward compatible with the retired Streamlit entry point v1 forward_ml() / forward_anchor() helpers.
 """
@@ -19,9 +22,6 @@ import numpy as np
 import joblib
 import tensorflow as tf
 
-# Respect the HF_REPO environment variable (fly.toml / Dockerfile set it). It was
-# previously hardcoded to a different account's repo than the retired Streamlit entry point used, so the
-# dip specialist was never fetched from the right place.
 HF_REPO = os.getenv("HF_REPO", "kara-nawzad/antenna-models")
 
 
@@ -41,7 +41,7 @@ FREQS_RAW = np.linspace(1.0, 7.0, 151)
 
 
 def load_v2_engines(model_dir=None, main_model=None):
-    """Load the Two-Brain 2.0 stack (or fall back to v1 if v2 is missing).
+    """Load the main-brain stack.
 
     main_model : optional already-loaded Keras model. The API engine loads
       forward_model_v2_curve.keras for the main path; passing that same object here
@@ -75,25 +75,15 @@ def load_v2_engines(model_dir=None, main_model=None):
 
 
 def _finish_load(main):
-    """Shared tail of load_v2_engines(): attach the specialist + scalers."""
-    dip = None
-    _download_hf("s11_dip_specialist.pkl")
-    if os.path.exists("s11_dip_specialist.pkl"):
-        try:
-            dip = joblib.load("s11_dip_specialist.pkl")
-        except Exception as e:
-            print(f"[HF] Could not load specialist: {e}")
-            dip = None
-    if dip is None:
-        # Surface this clearly: without the specialist the app runs the CSV anchor
-        # path only, and the "Two-Brain 2.0" label would be misleading.
-        print("[ENGINE] s11_dip_specialist.pkl unavailable -> running main brain only "
-              f"(looked in HF repo '{HF_REPO}')")
-
+    """Shared tail of load_v2_engines(): load scalers."""
+    # Dip specialist removed — no s11_dip_specialist.pkl download or load.
     s_geo = joblib.load("scaler_geo.pkl")
     s_perf = joblib.load("scaler_perf.pkl")
 
-    return main, dip, s_geo, s_perf, FREQS_RAW
+    # Keep 5-tuple return for backward compatibility with core.py:
+    # (main, dip_specialist, s_geo, s_perf, FREQS_RAW)
+    # dip_specialist is always None now.
+    return main, None, s_geo, s_perf, FREQS_RAW
 
 
 # ---------------------------------------------------------------------------
@@ -140,80 +130,7 @@ def _vna_measure(freqs, curve):
 
 
 # ---------------------------------------------------------------------------
-# Dip specialist
-# ---------------------------------------------------------------------------
-def predict_dip_specialist(x_geo_scaled, dip_specialist):
-    """x_geo_scaled: (1, 14) already transformed. Returns (f_dip_ghz, s11_min_db)."""
-    if dip_specialist is None:
-        return None, None
-
-    s11_w = dip_specialist["s11_weights"]
-    s11_pred = (
-        s11_w[0] * dip_specialist["gbr_s11"].predict(x_geo_scaled)
-        + s11_w[1] * dip_specialist["rf_s11"].predict(x_geo_scaled)
-        + s11_w[2] * dip_specialist["et_s11"].predict(x_geo_scaled)
-    )
-
-    fdip_w = dip_specialist["fdip_weights"]
-    x_aug = np.hstack([x_geo_scaled, s11_pred.reshape(-1, 1)])
-    fdip_pred = (
-        fdip_w[0] * dip_specialist["gbr_fdip"].predict(x_aug)
-        + fdip_w[1] * dip_specialist["rf_fdip"].predict(x_aug)
-    )
-    return float(fdip_pred[0]), float(s11_pred[0])
-
-
-# ---------------------------------------------------------------------------
-# Anchor-blend in a window around (f_dip, s11_min)
-# ---------------------------------------------------------------------------
-def apply_anchor_blend(freqs, curve, f_dip, s11_min, window_mhz=50.0, anchor_strength=1.0):
-    """
-    Replace the main brain's curve in a +/- window_mhz/2 around f_dip with a
-    smooth sine-envelope interpolation that:
-      - has the specialist's (f_dip, s11_min) point exactly in the middle
-      - meets the main brain's curve at the window edges with zero slope
-      - leaves the rest of the curve untouched
-
-    anchor_strength in [0, 1]:
-        1.0 = full specialist override
-        0.5 = 50/50 blend
-        0.0 = no change
-    """
-    f = np.asarray(freqs, dtype=float).copy()
-    c = np.asarray(curve, dtype=float).copy()
-
-    half = window_mhz / 2000.0  # MHz -> GHz
-    in_win = (f >= f_dip - half) & (f <= f_dip + half)
-    if not np.any(in_win) or anchor_strength <= 0.0:
-        return c
-
-    idx_in = np.where(in_win)[0]
-    i_lo, i_hi = idx_in[0], idx_in[-1]
-    c_lo, c_hi = c[i_lo], c[i_hi]
-    f_lo, f_hi = f[i_lo], f[i_hi]
-
-    # Smooth sine envelope:
-    #   - t = 0 at f_lo, t = 1 at f_hi
-    #   - ramp = sin(pi*t)  -> 0 at edges, 1 at f_dip (by symmetry of the window)
-    #   - target = (1-ramp) * (c_lo + c_hi)/2  +  ramp * s11_min
-    # This guarantees:
-    #   - target(f_lo) = (c_lo + c_hi)/2
-    #   - target(f_dip) = s11_min
-    #   - target(f_hi) = (c_lo + c_hi)/2
-    # which is the natural "anchor pull-down" shape.  We then blend with the
-    # original curve by `anchor_strength`.
-    t = (f - f_lo) / max(1e-12, (f_hi - f_lo))
-    ramp = np.sin(np.pi * t)
-    target = (1.0 - ramp) * 0.5 * (c_lo + c_hi) + ramp * s11_min
-
-    blended = (1.0 - anchor_strength) * c + anchor_strength * target
-    c_new = c.copy()
-    c_new[in_win] = blended[in_win]
-    return c_new
-
-
-# ---------------------------------------------------------------------------
-# Main entry point used by the retired Streamlit entry point
+# Main entry point
 # ---------------------------------------------------------------------------
 def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
                use_anchor=True, blend_window_mhz=50.0, anchor_strength=1.0,
@@ -223,11 +140,11 @@ def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
         lp, wp    : geometry (mm)
         shape_id  : 1..12
         main_model: the TF model (v2 preferred, v1 also works)
-        dip_specialist: dict or None (if None, falls back to plain main brain)
+        dip_specialist: ignored (kept for compatibility, always None)
         s_geo, s_perf: scalers from 2_preprocessing.py
-        use_anchor: if True and a specialist exists, blend the curve near the dip
-        blend_window_mhz: width of the specialist blend window (default 50 MHz)
-        anchor_strength: 0..1, how strongly the specialist overrides (default 1.0)
+        use_anchor: ignored (dip specialist removed)
+        blend_window_mhz: ignored
+        anchor_strength: ignored
 
     Returns: dict (matches the retired Streamlit entry point forward_ml() output format)
     """
@@ -244,38 +161,20 @@ def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
     p_scalars = p_scalars[0]
     p_curve = p_curve[0]
 
-    # Reconstruct the full 157-dim prediction.  We put the main brain's outputs
-    # in their canonical scaler_perf slots: [0]=fr, [2]=Gain, [3]=Eff, [4]=S11_min.
-    # The other slots (BW=1, is_matched=5) get zeros - they're not predicted
-    # by the v2 main brain.
+    # Reconstruct the full 157-dim prediction.
     recon = np.zeros((1, 157), dtype=float)
     recon[0, [0, 2, 3, 4]] = p_scalars
     recon[0, 6:] = p_curve
     perf = s_perf.inverse_transform(recon)[0]
-    base_s11_min = float(perf[4])  # S11_min (dB), from main brain
+    base_s11_min = float(perf[4])
     base_gain = float(perf[2])
     base_eff = float(perf[3])
 
-    # The 151-point curve in dB
     base_curve = perf[6:].astype(float)
 
-    # Specialist dip prediction
-    spec_f_dip, spec_s11_min = predict_dip_specialist(x_scaled, dip_specialist)
-    if use_anchor and dip_specialist is not None and spec_f_dip is not None:
-        # Clamp f_dip to the curve's frequency range
-        spec_f_dip = float(np.clip(spec_f_dip, FREQS_RAW[0], FREQS_RAW[-1]))
-        # Don't allow impossibly shallow dips
-        spec_s11_min = float(min(spec_s11_min, -2.0))
-        final_curve = apply_anchor_blend(
-            FREQS_RAW, base_curve, spec_f_dip, spec_s11_min,
-            window_mhz=blend_window_mhz, anchor_strength=anchor_strength,
-        )
-        used_specialist = True
-    else:
-        final_curve = base_curve
-        spec_f_dip = None
-        spec_s11_min = None
-        used_specialist = False
+    # Dip specialist removed — no anchor blend
+    final_curve = base_curve
+    used_specialist = False
 
     # DSP polishing + VNA measurement
     f_s, c_s = _apply_dsp_polishing(FREQS_RAW, final_curve)
@@ -291,12 +190,11 @@ def forward_v2(lp, wp, shape_id, main_model, dip_specialist, s_geo, s_perf,
         "f": f_s,
         "c": c_s,
         "v": vswr,
-        # Two-Brain 2.0 extras (used for the metrics panel in the web app)
-        "spec_f_dip": spec_f_dip,
-        "spec_s11_min": spec_s11_min,
+        "spec_f_dip": None,
+        "spec_s11_min": None,
         "main_s11_min": base_s11_min,
         "used_specialist": used_specialist,
-        "engine": "Two-Brain 2.0" if used_specialist else "Main-Brain only",
+        "engine": "Main-Brain only",
     }
 
 
@@ -305,35 +203,13 @@ def forward_v2_with_csv_anchor(lp, wp, shape_id, main_model, dip_specialist, s_g
                                 use_anchor=True, blend_window_mhz=50.0, anchor_strength=1.0,
                                 verbose=0):
     """
-    Two-Brain 2.0 with CSV anchoring: uses CSV data as primary, specialist as dip enhancer.
-    This is the correct approach - CSV data is ground truth, specialist improves dip quality.
+    CSV-anchored path — dip specialist removed, now pure CSV.
+    Kept for compatibility with core.py; returns polished CSV curve.
     """
     # If we have CSV data, use it directly (CSV is ground truth)
     if csv_curve is not None and len(csv_curve) > 0:
-        # Use CSV curve as the base (this is the CST simulation data)
-        base_curve = csv_curve
-        # Run specialist to predict where the dip SHOULD be
-        x = np.zeros((1, 14), dtype=float)
-        x[0, 0] = float(lp)
-        x[0, 1] = float(wp)
-        if 1 <= int(shape_id) <= 12:
-            x[0, 1 + int(shape_id)] = 1.0
-        x_scaled = s_geo.transform(x)
-        
-        spec_f_dip, spec_s11_min = predict_dip_specialist(x_scaled, dip_specialist)
-        
-        if use_anchor and dip_specialist is not None and spec_f_dip is not None:
-            spec_f_dip = float(np.clip(spec_f_dip, FREQS_RAW[0], FREQS_RAW[-1]))
-            spec_s11_min = float(min(spec_s11_min, -2.0))
-            final_curve = apply_anchor_blend(
-                csv_f_axis, base_curve, spec_f_dip, spec_s11_min,
-                window_mhz=blend_window_mhz, anchor_strength=anchor_strength,
-            )
-            used_specialist = True
-        else:
-            final_curve = base_curve
-            used_specialist = False
-        
+        final_curve = csv_curve
+        used_specialist = False
         f_s, c_s = _apply_dsp_polishing(csv_f_axis, final_curve)
     else:
         # No CSV data - use pure ML prediction
@@ -341,9 +217,9 @@ def forward_v2_with_csv_anchor(lp, wp, shape_id, main_model, dip_specialist, s_g
                            use_anchor=use_anchor, blend_window_mhz=blend_window_mhz,
                            anchor_strength=anchor_strength, verbose=verbose)
         return result
-    
+
     fr, s11, bw, status, vswr = _vna_measure(f_s, c_s)
-    
+
     return {
         "fr": fr,
         "s11": s11,
@@ -354,8 +230,8 @@ def forward_v2_with_csv_anchor(lp, wp, shape_id, main_model, dip_specialist, s_g
         "f": f_s,
         "c": c_s,
         "v": vswr,
-        "spec_f_dip": spec_f_dip if used_specialist else None,
-        "spec_s11_min": spec_s11_min if used_specialist else None,
+        "spec_f_dip": None,
+        "spec_s11_min": None,
         "used_specialist": used_specialist,
-        "engine": "Two-Brain 2.0 + CSV" if used_specialist else "CSV-only",
+        "engine": "CSV-only",
     }

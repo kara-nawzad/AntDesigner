@@ -12,8 +12,8 @@ flowchart LR
     Core --> Viz["antdesigner.visualization"]
     Core --> Scalers["Root scaler files"]
     Core -.-> HF["Hugging Face model + CST CSV"]
-    API --> Aether["antdesigner.services.aether"]
-    Aether -. optional .-> Groq["Groq API"]
+    API --> Hertz["antdesigner.services.hertz"]
+    Hertz -. optional .-> Groq["Groq API"]
     Fly["Fly.io / Docker"] --> API
 ```
 
@@ -23,7 +23,7 @@ flowchart LR
 - `src/antdesigner/engine/core.py` loads the numerical engine, root-level scaler paths, external model/data, and orchestrates predictions and validation.
 - `src/antdesigner/engine/model_v2.py` contains the trained-model inference helper.
 - `src/antdesigner/visualization/` serves API-generated antenna and Plotly visuals.
-- `src/antdesigner/services/aether.py` contacts Groq only when `GROQ_API_KEY` is set.
+- `src/antdesigner/services/hertz.py` contacts Groq only when `GROQ_API_KEY` is set.
 - `web/` is mounted at `/static`; `assets/` is mounted at `/assets`.
 - Docker downloads the Keras model and CST CSV during build. It expects authentic scaler pickle files at the project root and rejects unresolved LFS pointer contents.
 - Fly uses internal port 8080 and the `/health` check in `fly.toml`.
